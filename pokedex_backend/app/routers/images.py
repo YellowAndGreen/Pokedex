@@ -5,6 +5,7 @@
 
 from typing import List, Optional
 from pathlib import Path
+import asyncio
 
 from fastapi import (
     APIRouter,
@@ -70,56 +71,56 @@ async def upload_image(
             detail=f"类别ID {category_id} 不存在",
         )
 
-    # 2. 校验文件类型和大小
-    if file.content_type not in settings.allowed_mime_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"不支持的文件类型: {file.content_type}. 允许的类型: {', '.join(settings.allowed_mime_types)}",
-        )
-
-    # 异步读取文件内容以检查大小 (更准确的方式是直接使用 UploadFile.size 属性，如果可用且可靠)
-    # content = await file.read()
-    # await file.seek(0) # 重置文件指针，以便后续服务可以读取
-    # if len(content) > settings.max_image_size:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-    #         detail=f"文件大小超过限制 ({settings.max_image_size // 1024 // 1024}MB)"
-    #     )
-    # 注意: FastAPI的UploadFile在读取后可能不会自动重置指针，服务层需注意。
-    # 更推荐的方式是在FileStorageService内部处理文件读取和大小检查。
-
-    # 3. 保存原始文件 (FileStorageService 应处理文件名唯一化和分级目录)
+    # 2. 保存原始文件 (FileStorageService 应处理文件名唯一化和分级目录)
     try:
-        (
-            original_file_path,
-            stored_filename,
-            thumbnail_dir_path,
-        ) = await file_storage.save_upload_file(
+        # filename type ignore due to UploadFile.filename potentially being None, though FastAPI usually ensures it for File(...)
+        image_absolute_path, stored_filename = await file_storage.save_upload_file(
             upload_file=file, filename=file.filename  # type: ignore
         )
+    except HTTPException as e:  # Catch specific HTTPExceptions from service
+        raise e
     except Exception as e:
-        # log e
+        print(f"文件保存服务发生意外错误: {e}")  # 日志记录
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"文件保存失败: {e}",
+            detail=f"文件保存过程中发生意外错误。",
+        )
+
+    # 3. 获取相对子目录以生成缩略图
+    try:
+        relative_sub_dir = await file_storage.get_relative_sub_directory_for_file(
+            stored_filename
+        )
+    except Exception as e:
+        print(f"获取文件相对子目录失败: {e}")  # 日志记录
+        # 清理已保存的原图，因为没有子目录信息无法继续生成缩略图或记录正确路径
+        await file_storage.delete_file(image_absolute_path)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="处理文件路径信息时出错。",
         )
 
     # 4. 生成缩略图
+    thumbnail_absolute_path: Optional[Path] = None
     try:
-        thumbnail_file_path = await image_processor.generate_thumbnail(
-            source_image_path=original_file_path,
-            # thumbnail_dir_path=thumbnail_dir_path, # 假设服务内部处理
-            # stored_filename=stored_filename # 假设服务内部处理
+        thumbnail_absolute_path = await image_processor.generate_thumbnail(
+            source_image_path=image_absolute_path,
+            relative_sub_dir=relative_sub_dir,
+            stored_filename=stored_filename,
         )
+    except HTTPException as e:  # Catch specific HTTPExceptions from service
+        # 如果缩略图生成失败，是否删除原图是一个策略问题
+        # 此处不删除原图，但记录一个错误，图片将没有缩略图
+        print(
+            f"警告: 缩略图生成失败 ({e.detail}) 对于文件 {stored_filename}. 图片仍会保存但无缩略图。"
+        )
+        # 可以选择不抛出异常，允许图片无缩略图，或者按原样抛出
+        # raise e # 如果要求必须有缩略图，则重新抛出
     except Exception as e:
-        # log e
-        # 如果缩略图生成失败，考虑是否回滚原图保存，或允许无缩略图
-        # 此处简单起见，抛出错误。实际项目中可能需要更复杂的错误处理策略。
-        # 也可以尝试删除已保存的原图
-        # await file_storage.delete_file(original_file_path.name) # 注意这里的参数应该是相对路径或可定位的标识
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"缩略图生成失败: {e}",
+        print(f"缩略图服务发生意外错误: {e}")  # 日志记录
+        # 同上，策略问题
+        print(
+            f"警告: 缩略图生成发生意外错误对于文件 {stored_filename}. 图片仍会保存但无缩略图。"
         )
 
     # 5. 创建数据库记录
@@ -127,15 +128,17 @@ async def upload_image(
         original_filename=file.filename,  # type: ignore
         stored_filename=stored_filename,
         relative_file_path=str(
-            original_file_path.relative_to(settings.image_storage_root)
+            image_absolute_path.relative_to(settings.image_storage_root)
         ),
         relative_thumbnail_path=(
-            str(thumbnail_file_path.relative_to(settings.thumbnail_storage_root))
-            if thumbnail_file_path
+            str(thumbnail_absolute_path.relative_to(settings.thumbnail_storage_root))
+            if thumbnail_absolute_path and settings.thumbnail_storage_root
             else None
         ),
         mime_type=file.content_type,  # type: ignore
-        size_bytes=original_file_path.stat().st_size,  # 获取已保存文件的大小
+        size_bytes=(
+            await asyncio.os.stat(image_absolute_path)
+        ).st_size,  # 异步获取文件大小
         description=description,
         tags=tags,
         category_id=category_id,
@@ -198,27 +201,27 @@ async def delete_image(*, session: Session = Depends(get_session), image_id: int
 
     # 1. 删除物理文件 (原图和缩略图)
     # 路径应从数据库记录中获取，并构造成服务可用的形式
-    paths_to_delete = []
+    paths_to_delete_tasks = []
     if db_image.relative_file_path:
-        paths_to_delete.append(
+        original_image_abs_path = (
             settings.image_storage_root / db_image.relative_file_path
         )
+        paths_to_delete_tasks.append(file_storage.delete_file(original_image_abs_path))
+
     if db_image.relative_thumbnail_path:
-        paths_to_delete.append(
+        thumbnail_abs_path = (
             settings.thumbnail_storage_root / db_image.relative_thumbnail_path
         )
+        paths_to_delete_tasks.append(file_storage.delete_file(thumbnail_abs_path))
 
-    for file_path_to_delete in paths_to_delete:
-        try:
-            if await file_storage.delete_file(file_path_to_delete):
-                print(f"已删除物理文件: {file_path_to_delete}")  # 记录日志
-            else:
-                print(
-                    f"尝试删除文件失败或文件不存在: {file_path_to_delete}"
-                )  # 记录日志
-        except Exception as e:
-            # 记录文件删除失败的日志，但继续尝试删除数据库记录
-            print(f"删除物理文件 {file_path_to_delete} 时发生错误: {e}")
+    delete_results = await asyncio.gather(
+        *paths_to_delete_tasks, return_exceptions=True
+    )
+    for result in delete_results:
+        if isinstance(result, Exception):
+            print(f"删除物理文件时发生错误: {result}")  # 日志记录
+        # elif not result: # 如果delete_file返回False表示失败
+        # print(f"尝试删除某个文件失败或文件不存在") # 日志记录
 
     # 2. 删除数据库记录
     image_crud.delete_image(session=session, image_id=image_id)

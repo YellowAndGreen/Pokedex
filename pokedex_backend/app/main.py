@@ -6,6 +6,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path  # 确保导入 Path
 
 from app.database import create_db_and_tables, engine  # 引入数据库初始化函数和引擎
 from app.routers import categories, images  # 引入API路由模块
@@ -25,9 +26,11 @@ def create_application() -> FastAPI:
     返回:
         FastAPI: 配置完成的应用程序实例
     """
-    # 调用数据库表创建函数
-    # 这应该在应用启动的早期阶段执行，以确保表存在
-    create_db_and_tables()
+    # 确保基础存储目录存在 (服务层也会检查，但这里作为启动保障)
+    settings.image_storage_root.mkdir(parents=True, exist_ok=True)
+    settings.thumbnail_storage_root.mkdir(parents=True, exist_ok=True)
+
+    create_db_and_tables()  # 创建数据库表 (如果尚不存在)
 
     app = FastAPI(
         title=settings.project_name,
@@ -48,17 +51,34 @@ def create_application() -> FastAPI:
             allow_headers=["*"],
         )
 
-    # 挂载静态文件目录 (用于直接访问上传的图片和缩略图)
-    # /static 将映射到 settings.static_dir 定义的目录
-    # 注意：settings中可能需要定义 static_dir, image_storage_root, thumbnail_storage_root
-    # 这里的路径需要根据实际的图片存储根目录来调整
-    # 例如，如果图片存在于 static/uploads/images，则 StaticFiles(directory="static/uploads") 或更具体的路径
-    if settings.static_files_mount_path and settings.static_files_directory:
-        app.mount(
-            settings.static_files_mount_path,
-            StaticFiles(directory=settings.static_files_directory),
-            name="static_uploads",
-        )
+    # 根据README.md, 图片存储在 static/uploads/images 和 static/uploads/thumbnails
+    # 因此，我们应该将 static/uploads 目录挂载，以便能通过URL访问其下的内容。
+    # 例如: /static_uploads/images/aa/bb/uuid.jpg
+    #       /static_uploads/thumbnails/aa/bb/uuid_thumb.jpg
+    # 这里的 `settings.static_files_directory` 应指向 `static/uploads` 所在的物理路径。
+    # 如果 settings.image_storage_root 是 "app/static/uploads/images",
+    # 那么 settings.static_files_directory 应该是 "app/static/uploads" (或其父目录，取决于挂载点)
+    # 假设 settings.static_files_directory = Path("app/static/uploads")
+    # 并且 settings.static_files_mount_path = "/static/uploads" (与README一致)
+
+    # 更直接的方式是使用 image_storage_root.parent 作为 StaticFiles 的目录
+    # 这样，如果 image_storage_root = "static/uploads/images", parent是 "static/uploads"
+    # URL 仍将从挂载点开始，例如 /static_mounted/images/... 或 /static_mounted/thumbnails/...
+    # 根据README 4.4，API响应中的URL会基于 /static/uploads/images/... 构建
+    # 所以，我们需要挂载 "static/uploads" 目录到 "/static/uploads" URL路径
+
+    # 假设项目根目录下有 static/uploads 结构
+    # 如果 settings.image_storage_root = Path("static/uploads/images")
+    # 则其父目录 settings.image_storage_root.parent 是 Path("static/uploads")
+    # 这是我们想要作为静态服务根的目录
+    static_serve_directory = settings.image_storage_root.parent
+    static_mount_url = "/static/uploads"  # 与README中的URL结构一致
+
+    app.mount(
+        static_mount_url,
+        StaticFiles(directory=static_serve_directory),
+        name="uploaded_content",
+    )
 
     # 包含API路由
     # 所有来自 categories 和 images 路由器的路径都将以 settings.api_v1_prefix 为前缀
