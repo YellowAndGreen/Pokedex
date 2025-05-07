@@ -389,4 +389,8 @@ pokedex_frontend/
 
 ---
 
-本技术方案提供了一个全面的指引，用于开发您的图鉴式图片管理工具。在开发过程中，可根据实际情况进行调整和细化。
+安装方式：
+conda create -n pokedex python=3.9
+conda activate pokedex
+python -m pip install --upgrade pip setuptools -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install -r pokedex_backend/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
