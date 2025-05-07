@@ -16,6 +16,8 @@ const api = axios.create({
   }
 });
 
+export const apiInstance = api; // Export the instance
+
 // API service functions
 const apiService = {
   // Category endpoints

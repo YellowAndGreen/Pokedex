@@ -1,5 +1,7 @@
-import axios from 'axios';
-import { CategoryRead, CategoryReadWithImages, ImageRead } from '../types';
+import axios, { AxiosRequestConfig } from 'axios';
+import MockAdapter from 'axios-mock-adapter';
+import { CategoryRead, CategoryReadWithImages, ImageRead, CategoryCreate, ImageUpdate } from '../types';
+import { apiInstance } from './apiService';
 
 const mockCategories: CategoryRead[] = [
   {
@@ -35,21 +37,23 @@ const mockCategories: CategoryRead[] = [
 // Generate mock images for each category
 const generateMockImages = (categoryId: number, count: number): ImageRead[] => {
   const images: ImageRead[] = [];
-  
+  const baseSeed = categoryId * 1000; // Base seed for deterministic but unique images per category
+
   for (let i = 1; i <= count; i++) {
+    const imageSeed = baseSeed + i;
     images.push({
       id: categoryId * 100 + i,
       category_id: categoryId,
       original_filename: `bird_photo_${categoryId}_${i}.jpg`,
-      relative_file_path: `cat${categoryId}/bird_photo_${i}.jpg`,
-      relative_thumbnail_path: `cat${categoryId}/thumbnails/bird_photo_${i}.jpg`,
+      stored_filename: `uuid_${categoryId}_${i}.jpg`, // This would be a UUID in a real scenario
+      // Using picsum.photos for visible placeholder images
+      relative_file_path: `https://picsum.photos/seed/${imageSeed}/600/400`,
+      relative_thumbnail_path: `https://picsum.photos/seed/${imageSeed}/150/150`,
       mime_type: 'image/jpeg',
       size_bytes: Math.floor(Math.random() * 5000000) + 500000, // Random size between 500KB and 5MB
       upload_date: new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString(), // Random date within last 30 days
       description: `Beautiful bird photo #${i} in the ${mockCategories.find(c => c.id === categoryId)?.name} category`,
-      tags: ['bird', 'nature', `photo${i}`, categoryId === 1 ? 'hummingbird' : 
-             categoryId === 2 ? 'eagle' : 
-             categoryId === 3 ? 'penguin' : 'parrot']
+      tags: ['bird', 'nature', `photo${i}`]
     });
   }
   
@@ -59,282 +63,227 @@ const generateMockImages = (categoryId: number, count: number): ImageRead[] => {
 // Generate mock data for categories with images
 let mockCategoriesWithImages: CategoryReadWithImages[] = mockCategories.map(category => ({
   ...category,
-  images: generateMockImages(category.id, category.id === 1 ? 8 : 
-                                         category.id === 2 ? 5 : 
-                                         category.id === 3 ? 6 : 4)
+  images: generateMockImages(category.id, Math.floor(Math.random() * 5) + 3)
 }));
 
 // Setup mock handlers for API requests
 export const setupMocks = () => {
-  // Mock API adapter
-  const mockAdapter = {
-    // GET /api/categories
-    getCategories: () => {
-      return Promise.resolve([...mockCategories]);
-    },
-    
-    // GET /api/categories/:id
-    getCategoryWithImages: (categoryId: number) => {
-      const category = mockCategoriesWithImages.find(c => c.id === categoryId);
-      if (!category) {
-        return Promise.reject(new Error('Category not found'));
-      }
-      return Promise.resolve({...category, images: [...category.images]});
-    },
-    
-    // POST /api/categories
-    createCategory: (data: any) => {
-      const newCategory: CategoryRead = {
-        id: Math.max(...mockCategories.map(c => c.id), 0) + 1,
-        name: data.name,
-        description: data.description,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      mockCategories.push(newCategory);
-      mockCategoriesWithImages.push({
-        ...newCategory,
-        images: []
-      });
-      
-      return Promise.resolve({...newCategory});
-    },
-    
-    // PUT /api/categories/:id
-    updateCategory: (categoryId: number, data: any) => {
-      const index = mockCategories.findIndex(c => c.id === categoryId);
-      if (index === -1) {
-        return Promise.reject(new Error('Category not found'));
-      }
-      
-      const updatedCategory = {
-        ...mockCategories[index],
-        name: data.name,
-        description: data.description,
-        updated_at: new Date().toISOString()
-      };
-      
-      mockCategories[index] = updatedCategory;
-      
-      const categoryWithImagesIndex = mockCategoriesWithImages.findIndex(c => c.id === categoryId);
-      if (categoryWithImagesIndex !== -1) {
-        mockCategoriesWithImages[categoryWithImagesIndex] = {
-          ...updatedCategory,
-          images: mockCategoriesWithImages[categoryWithImagesIndex].images
-        };
-      }
-      
-      return Promise.resolve({...updatedCategory});
-    },
-    
-    // DELETE /api/categories/:id
-    deleteCategory: (categoryId: number) => {
-      const index = mockCategories.findIndex(c => c.id === categoryId);
-      if (index === -1) {
-        return Promise.reject(new Error('Category not found'));
-      }
-      
-      mockCategories.splice(index, 1);
-      mockCategoriesWithImages = mockCategoriesWithImages.filter(c => c.id !== categoryId);
-      
-      return Promise.resolve();
-    },
-    
-    // POST /api/images/upload
-    uploadImage: (formData: FormData) => {
-      const categoryId = Number(formData.get('category_id'));
-      const description = formData.get('description') as string || '';
-      const tags = (formData.get('tags') as string || '').split(',').map(t => t.trim()).filter(Boolean);
-      
-      // Create new image
-      const newImageId = Math.max(...mockCategoriesWithImages.flatMap(c => c.images.map(i => i.id)), 0) + 1;
-      const newImage: ImageRead = {
-        id: newImageId,
-        category_id: categoryId,
-        original_filename: `uploaded_image_${Date.now()}.jpg`,
-        relative_file_path: `cat${categoryId}/uploaded_image_${Date.now()}.jpg`,
-        relative_thumbnail_path: `cat${categoryId}/thumbnails/uploaded_image_${Date.now()}.jpg`,
-        mime_type: 'image/jpeg',
-        size_bytes: Math.floor(Math.random() * 2000000) + 100000,
-        upload_date: new Date().toISOString(),
-        description,
-        tags
-      };
-      
-      // Add to category
-      const categoryIndex = mockCategoriesWithImages.findIndex(c => c.id === categoryId);
-      if (categoryIndex === -1) {
-        return Promise.reject(new Error('Category not found'));
-      }
-      
-      mockCategoriesWithImages[categoryIndex].images.push(newImage);
-      
-      return Promise.resolve({...newImage});
-    },
-    
-    // PUT /api/images/:id
-    updateImage: (imageId: number, data: any) => {
-      let updatedImage: ImageRead | null = null;
-      
-      mockCategoriesWithImages = mockCategoriesWithImages.map(category => {
-        const imageIndex = category.images.findIndex(img => img.id === imageId);
-        if (imageIndex !== -1) {
-          const originalImage = category.images[imageIndex];
-          
-          // If category_id changed, need to move the image
-          if (data.category_id && data.category_id !== originalImage.category_id) {
-            // Remove from current category
-            const updatedImages = category.images.filter(img => img.id !== imageId);
-            
-            // Find new category and add image there
-            const newCategoryIndex = mockCategoriesWithImages.findIndex(c => c.id === data.category_id);
-            if (newCategoryIndex !== -1) {
-              updatedImage = {
-                ...originalImage,
-                category_id: data.category_id,
-                description: data.description ?? originalImage.description,
-                tags: data.tags ?? originalImage.tags
-              };
-              
-              mockCategoriesWithImages[newCategoryIndex].images.push(updatedImage);
-            }
-            
-            return {
-              ...category,
-              images: updatedImages
-            };
-          } else {
-            // Just update in place
-            updatedImage = {
-              ...originalImage,
-              description: data.description ?? originalImage.description,
-              tags: data.tags ?? originalImage.tags
-            };
-            
-            return {
-              ...category,
-              images: category.images.map(img => 
-                img.id === imageId ? updatedImage! : img
-              )
-            };
-          }
-        }
-        
-        return category;
-      });
-      
-      if (!updatedImage) {
-        return Promise.reject(new Error('Image not found'));
-      }
-      
-      return Promise.resolve({...updatedImage});
-    },
-    
-    // DELETE /api/images/:id
-    deleteImage: (imageId: number) => {
-      let deleted = false;
-      
-      mockCategoriesWithImages = mockCategoriesWithImages.map(category => {
-        const imageIndex = category.images.findIndex(img => img.id === imageId);
-        if (imageIndex !== -1) {
-          deleted = true;
-          return {
-            ...category,
-            images: category.images.filter(img => img.id !== imageId)
-          };
-        }
-        return category;
-      });
-      
-      if (!deleted) {
-        return Promise.reject(new Error('Image not found'));
-      }
-      
-      return Promise.resolve();
-    }
-  };
-  
-  // Mock interceptors for API requests
-  axios.interceptors.request.use(config => {
-    // Return config to continue
-    return config;
+  const mock = new MockAdapter(apiInstance, { delayResponse: 500 });
+
+  // GET /api/categories/
+  mock.onGet(/\/api\/categories\/?(\?.*)?$/).reply((config: AxiosRequestConfig) => {
+    console.log('MOCK GET /api/categories/', config.params);
+    // const skip = config.params?.skip ? parseInt(config.params.skip) : 0;
+    // const limit = config.params?.limit ? parseInt(config.params.limit) : mockCategories.length;
+    // const paginatedCategories = mockCategories.slice(skip, skip + limit);
+    return [200, [...mockCategories]]; // Simpler: return all for now
   });
-  
-  axios.interceptors.response.use(
-    async response => {
-      // Mock the API responses based on the request
-      const url = response.config.url || '';
-      const method = response.config.method?.toLowerCase() || '';
-      const data = response.config.data ? JSON.parse(response.config.data) : {};
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Categories endpoint
-      if (url.match(/^\/api\/categories\/?$/)) {
-        if (method === 'get') {
-          response.data = await mockAdapter.getCategories();
-          return response;
-        }
-        
-        if (method === 'post') {
-          response.data = await mockAdapter.createCategory(data);
-          return response;
-        }
-      }
-      
-      const categoryDetailMatch = url.match(/^\/api\/categories\/(\d+)\/?$/);
-      if (categoryDetailMatch) {
-        const categoryId = parseInt(categoryDetailMatch[1], 10);
-        
-        if (method === 'get') {
-          response.data = await mockAdapter.getCategoryWithImages(categoryId);
-          return response;
-        }
-        
-        if (method === 'put') {
-          response.data = await mockAdapter.updateCategory(categoryId, data);
-          return response;
-        }
-        
-        if (method === 'delete') {
-          await mockAdapter.deleteCategory(categoryId);
-          response.data = null;
-          return response;
-        }
-      }
-      
-      // Images endpoints
-      if (url.includes('/api/images/upload') && method === 'post') {
-        response.data = await mockAdapter.uploadImage(response.config.data);
-        return response;
-      }
-      
-      const imageMatch = url.match(/^\/api\/images\/(\d+)\/?$/);
-      if (imageMatch) {
-        const imageId = parseInt(imageMatch[1], 10);
-        
-        if (method === 'put') {
-          response.data = await mockAdapter.updateImage(imageId, data);
-          return response;
-        }
-        
-        if (method === 'delete') {
-          await mockAdapter.deleteImage(imageId);
-          response.data = null;
-          return response;
-        }
-      }
-      
-      // If not handled, reject with 404
-      return Promise.reject(new Error('Not Found'));
-    },
-    error => {
-      console.error('Mock API error:', error);
-      return Promise.reject(error);
+
+  // GET /api/categories/:id/
+  mock.onGet(/\/api\/categories\/(\d+)\/?$/).reply((config: AxiosRequestConfig) => {
+    console.log('[MockAdapter] Handler for specific category. Received config.url (relative to baseURL):', config.url);
+    
+    let categoryIdString: string | undefined;
+    const pathParts = config.url?.split('/');
+
+    // Example config.url: "/categories/1/" -> pathParts: ["", "categories", "1", ""]
+    // Example config.url: "/categories/1" -> pathParts: ["", "categories", "1"]
+    if (pathParts && pathParts.length >= 3 && pathParts[1] === 'categories') {
+        categoryIdString = pathParts[2];
     }
-  );
-  
-  console.log('Mock data service initialized');
+
+    console.log('[MockAdapter] Extracted categoryIdString:', categoryIdString);
+    const categoryId = parseInt(categoryIdString as string);
+    console.log('[MockAdapter] Attempting to get category. Parsed ID:', categoryId);
+
+    // Diagnostic: Log the state of mockCategoriesWithImages
+    console.log('[MockAdapter] Current mockCategoriesWithImages count:', mockCategoriesWithImages.length);
+    console.log('[MockAdapter] IDs in mockCategoriesWithImages:', mockCategoriesWithImages.map(c => c.id));
+    
+    const category = mockCategoriesWithImages.find(c => c.id === categoryId);
+    console.log('[MockAdapter] Category found in mock data:', category ? category.name : 'Not Found');
+
+    if (!category) {
+      console.error('[MockAdapter] Category with ID', categoryId, 'not found. Returning 404.');
+      return [404, { detail: 'Category not found' }];
+    }
+    console.log('[MockAdapter] Category with ID', categoryId, 'found. Returning 200.');
+    return [200, {...category, images: [...category.images]}];
+  });
+
+  // POST /api/categories/
+  mock.onPost('/api/categories/').reply((config: AxiosRequestConfig) => {
+    const data = JSON.parse(config.data) as CategoryCreate;
+    console.log('MOCK POST /api/categories/', data);
+    const newCategory: CategoryRead = {
+      id: Math.max(...mockCategories.map(c => c.id), 0) + 1,
+      name: data.name,
+      description: data.description,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    mockCategories.push(newCategory);
+    mockCategoriesWithImages.push({ ...newCategory, images: [] });
+    return [201, {...newCategory}];
+  });
+
+  // PUT /api/categories/:id/
+  mock.onPut(/\/api\/categories\/(\d+)\/?$/).reply((config: AxiosRequestConfig) => {
+    const categoryId = parseInt(config.url!.split('/')[3]);
+    const data = JSON.parse(config.data) as CategoryCreate;
+    console.log('MOCK PUT /api/categories/' + categoryId + '/', data);
+    const index = mockCategories.findIndex(c => c.id === categoryId);
+    if (index === -1) {
+      return [404, { detail: 'Category not found' }];
+    }
+    const updatedCategoryData = {
+      ...mockCategories[index],
+      name: data.name,
+      description: data.description,
+      updated_at: new Date().toISOString(),
+    };
+    mockCategories[index] = updatedCategoryData;
+    const catWithImagesIndex = mockCategoriesWithImages.findIndex(c => c.id === categoryId);
+    if (catWithImagesIndex !== -1) {
+      mockCategoriesWithImages[catWithImagesIndex] = {
+         ...updatedCategoryData,
+         images: mockCategoriesWithImages[catWithImagesIndex].images 
+        };
+    }
+    return [200, {...updatedCategoryData}];
+  });
+
+  // DELETE /api/categories/:id/
+  mock.onDelete(/\/api\/categories\/(\d+)\/?$/).reply((config: AxiosRequestConfig) => {
+    const categoryId = parseInt(config.url!.split('/')[3]);
+    console.log('MOCK DELETE /api/categories/' + categoryId + '/');
+    const index = mockCategories.findIndex(c => c.id === categoryId);
+    if (index === -1) {
+      return [404, { detail: 'Category not found' }];
+    }
+    mockCategories.splice(index, 1);
+    mockCategoriesWithImages = mockCategoriesWithImages.filter(c => c.id !== categoryId);
+    return [204];
+  });
+
+  // POST /api/images/upload/
+  mock.onPost('/api/images/upload/').reply((config: AxiosRequestConfig) => {
+    // FormData is harder to inspect directly with JSON.parse, access fields directly
+    const formData = config.data as FormData;
+    const categoryId = Number(formData.get('category_id'));
+    const description = formData.get('description') as string | null;
+    const tagsRaw = formData.get('tags'); // Assuming tags are sent as JSON stringified array
+    let tags: string[] | null = null;
+    if (typeof tagsRaw === 'string' && tagsRaw.length > 0) {
+        try {
+            tags = JSON.parse(tagsRaw);
+        } catch (e) {
+            console.error('Failed to parse tags from FormData as JSON', tagsRaw);
+            // Fallback or error handling if backend expects JSON array for tags
+            // If backend expects comma-separated, then: tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+        }
+    }
+
+    console.log('MOCK POST /api/images/upload/', { categoryId, description, tags });
+
+    if (isNaN(categoryId) || !mockCategories.find(c => c.id === categoryId)) {
+        return [400, { detail: 'Invalid category_id' }];
+    }
+
+    const file = formData.get('file') as File;
+    const original_filename = file ? file.name : `uploaded_image_${Date.now()}.jpg`;
+
+    const newImageId = Math.max(0, ...mockCategoriesWithImages.flatMap(c => c.images.map(i => i.id))) + 1;
+    const newImage: ImageRead = {
+      id: newImageId,
+      category_id: categoryId,
+      original_filename: original_filename,
+      stored_filename: `uuid_mock_${newImageId}.jpg`,
+      relative_file_path: `images/mock_cat${categoryId}/uuid_mock_${newImageId}.jpg`,
+      relative_thumbnail_path: `thumbnails/mock_cat${categoryId}/uuid_mock_${newImageId}_thumb.jpg`,
+      mime_type: file ? file.type : 'image/jpeg',
+      size_bytes: file ? file.size : Math.floor(Math.random() * 2000000) + 100000,
+      upload_date: new Date().toISOString(),
+      description: description,
+      tags: tags,
+    };
+
+    const categoryIndex = mockCategoriesWithImages.findIndex(c => c.id === categoryId);
+    mockCategoriesWithImages[categoryIndex].images.push(newImage);
+    return [201, {...newImage}];
+  });
+
+  // PUT /api/images/:id/
+  mock.onPut(/\/api\/images\/(\d+)\/?$/).reply((config: AxiosRequestConfig) => {
+    const imageId = parseInt(config.url!.split('/')[3]);
+    const data = JSON.parse(config.data) as ImageUpdate;
+    console.log('MOCK PUT /api/images/' + imageId + '/', data);
+    let updatedImageRef: ImageRead | null = null;
+    let found = false;
+    mockCategoriesWithImages = mockCategoriesWithImages.map(category => {
+      let imagesInCategory = category.images;
+      const imageIndex = imagesInCategory.findIndex(img => img.id === imageId);
+      if (imageIndex !== -1) {
+        found = true;
+        const originalImage = imagesInCategory[imageIndex];
+        const updatedImage: ImageRead = {
+          ...originalImage,
+          description: data.description !== undefined ? data.description : originalImage.description,
+          tags: data.tags !== undefined ? data.tags : originalImage.tags,
+        };
+        if (data.category_id !== undefined && data.category_id !== originalImage.category_id) {
+          imagesInCategory = imagesInCategory.filter(img => img.id !== imageId);
+          const newCategoryIndex = mockCategoriesWithImages.findIndex(c => c.id === data.category_id);
+          if (newCategoryIndex !== -1) {
+            updatedImage.category_id = data.category_id;
+            mockCategoriesWithImages[newCategoryIndex].images.push(updatedImage);
+            updatedImageRef = updatedImage;
+          }
+        } else {
+          imagesInCategory[imageIndex] = updatedImage;
+          updatedImageRef = updatedImage;
+        }
+      }
+      return { ...category, images: imagesInCategory };
+    });
+    if (!found || !updatedImageRef) {
+      return [404, { detail: 'Image not found or error in update' }];
+    }
+    return [200, Object.assign({}, updatedImageRef)];
+  });
+
+  // DELETE /api/images/:id/
+  mock.onDelete(/\/api\/images\/(\d+)\/?$/).reply((config: AxiosRequestConfig) => {
+    const imageId = parseInt(config.url!.split('/')[3]);
+    console.log('MOCK DELETE /api/images/' + imageId + '/');
+    let deleted = false;
+    mockCategoriesWithImages = mockCategoriesWithImages.map(category => {
+      const initialLength = category.images.length;
+      const newImages = category.images.filter(img => img.id !== imageId);
+      if (newImages.length < initialLength) {
+        deleted = true;
+      }
+      return { ...category, images: newImages };
+    });
+
+    if (!deleted) {
+      return [404, { detail: 'Image not found' }];
+    }
+    return [204];
+  });
+
+  // GET /api/images/:id/  (This was missing from the original mock logic)
+  mock.onGet(/\/api\/images\/(\d+)\/?$/).reply((config: AxiosRequestConfig) => {
+    const imageId = parseInt(config.url!.split('/')[3]);
+    console.log('MOCK GET /api/images/' + imageId + '/');
+    for (const category of mockCategoriesWithImages) {
+      const image = category.images.find(img => img.id === imageId);
+      if (image) {
+        return [200, {...image}];
+      }
+    }
+    return [404, { detail: 'Image not found' }];
+  });
+
+  console.log('Mock adapter setup complete.');
 };

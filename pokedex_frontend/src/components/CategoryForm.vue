@@ -41,7 +41,11 @@ const submitForm = async () => {
   
   await formRef.value.validate((valid: boolean) => {
     if (valid) {
-      emit('submit', form.value);
+      const dataToSubmit: CategoryCreate = {
+        name: form.value.name,
+        description: form.value.description === '' ? null : form.value.description,
+      };
+      emit('submit', dataToSubmit);
     }
   });
 };

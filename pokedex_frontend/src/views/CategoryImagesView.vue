@@ -38,8 +38,11 @@ const currentPage = ref(1);
 
 // Get category ID from route params
 const categoryId = computed(() => {
-  const id = Number(route.params.id);
-  return isNaN(id) ? 0 : id;
+  const idParam = route.params.id;
+  if (Array.isArray(idParam)) { // Handle cases where param might be an array (though unlikely for :id)
+    return Number(idParam[0]);
+  }
+  return Number(idParam);
 });
 
 // Filtered images based on search
@@ -63,19 +66,40 @@ const paginatedImages = computed(() => {
 });
 
 onMounted(async () => {
-  if (categoryId.value) {
-    await categoryStore.fetchCategoryWithImages(categoryId.value);
+  const currentId = categoryId.value;
+  if (!isNaN(currentId) && currentId > 0) { // Check if ID is a valid number and positive
+    await categoryStore.fetchCategoryWithImages(currentId);
+  } else {
+    console.error('Invalid category ID in onMounted:', route.params.id);
+    // Optionally, redirect to a 404 page or show an error message
+    // categoryStore.setError('Invalid category ID'); // Example of setting an error
   }
 });
 
 // Watch for route changes
-watch(() => route.params.id, async (newId) => {
-  const id = Number(newId);
-  if (!isNaN(id) && id !== categoryId.value) {
-    await categoryStore.fetchCategoryWithImages(id);
-    currentPage.value = 1; // Reset pagination when category changes
+watch(() => route.params.id, async (newIdParam) => {
+  let newIdAsNumber: number;
+  if (Array.isArray(newIdParam)) {
+    newIdAsNumber = Number(newIdParam[0]);
+  } else {
+    newIdAsNumber = Number(newIdParam);
   }
-});
+
+  if (!isNaN(newIdAsNumber) && newIdAsNumber > 0) {
+    // Check if it's actually a different category to avoid redundant fetches
+    // categoryId.value might not have updated yet if this watch triggers before computed updates.
+    // So, compare with the current detail's ID if available, or just fetch if different from previous numeric ID.
+    if (categoryStore.currentCategoryDetail?.id !== newIdAsNumber) {
+        await categoryStore.fetchCategoryWithImages(newIdAsNumber);
+        currentPage.value = 1; // Reset pagination when category changes
+    }
+  } else {
+    console.error('Invalid category ID in watch:', newIdParam);
+    // Handle invalid ID, e.g., clear details, show error
+    // categoryStore.clearCurrentCategoryDetail();
+    // categoryStore.setError('Invalid category ID after route change');
+  }
+}, { immediate: false }); // Set immediate to false if onMounted handles initial load
 
 const openUploadDialog = () => {
   uploadDialogVisible.value = true;
@@ -85,9 +109,15 @@ const closeUploadDialog = () => {
   uploadDialogVisible.value = false;
 };
 
-const handleUploadSuccess = () => {
+const handleUploadSuccess = async () => {
   uploadDialogVisible.value = false;
-  categoryStore.fetchCategoryWithImages(categoryId.value);
+  const currentId = categoryId.value;
+  if (!isNaN(currentId) && currentId > 0) {
+    await categoryStore.fetchCategoryWithImages(currentId);
+  } else {
+    console.error('Upload success but category ID is invalid, cannot refresh category images. ID was:', currentId, 'From route params:', route.params.id);
+    // Optionally, you might want to inform the user or redirect
+  }
 };
 
 const handleUploadError = (error: Error) => {

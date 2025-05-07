@@ -56,8 +56,11 @@ const getBirdImageUrl = computed(() => {
       <span class="image-count" v-if="imageCount !== undefined">
         {{ imageCount }} {{ imageCount === 1 ? 'image' : 'images' }}
       </span>
-      <span class="creation-date">
+      <span class="creation-date" v-if="category.created_at">
         Added: {{ new Date(category.created_at).toLocaleDateString() }}
+      </span>
+      <span class="creation-date" v-else>
+        Added: N/A
       </span>
     </div>
     
