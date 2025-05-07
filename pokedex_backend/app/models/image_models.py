@@ -5,67 +5,92 @@
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Relationship
+
+# 避免循环导入，CategoryRead 在需要时以字符串形式提示，或按需导入
+# from app.models.category_models import CategoryRead
 
 
 class ImageBase(SQLModel):
     """图片基础模型
-    
+
     属性:
-        original_filename (str): 原始文件名
-        stored_filename (str): 存储文件名（唯一）
-        relative_file_path (str): 相对存储路径
-        relative_thumbnail_path (Optional[str]): 缩略图相对路径
-        mime_type (str): 文件MIME类型
-        size_bytes (int): 文件大小（字节）
+        original_filename (str): 用户上传时的原始文件名
+        stored_filename (str): 服务器存储的UUID文件名 (含扩展名)
+        relative_file_path (str): 相对于图片存储根目录的路径
+        relative_thumbnail_path (Optional[str]): 相对于缩略图存储根目录的路径
+        mime_type (str): 图片的MIME类型 (如 image/jpeg)
+        size_bytes (int): 图片文件大小 (字节)
         description (Optional[str]): 图片描述
-        tags (Optional[str]): 标签（逗号分隔）
-        upload_date (datetime): 上传时间
-        category_id (int): 所属分类ID
+        tags (Optional[str]): 图片标签 (逗号分隔或JSON字符串)
+        category_id (int): 图片所属的类别ID
     """
-    original_filename: str = Field(index=True, description="原始文件名")
-    stored_filename: str = Field(unique=True, index=True, description="存储文件名（唯一）")
-    relative_file_path: str = Field(description="相对存储路径")
-    relative_thumbnail_path: Optional[str] = Field(default=None, description="缩略图相对路径")
-    mime_type: str = Field(description="文件MIME类型")
-    size_bytes: int = Field(description="文件大小（字节）")
+
+    original_filename: str = Field(description="用户上传时的原始文件名")
+    stored_filename: str = Field(
+        unique=True, index=True, description="服务器存储的UUID文件名 (含扩展名)"
+    )
+    relative_file_path: str = Field(
+        description="相对于图片存储根目录的路径 (例如 aa/bb/uuid.jpg)"
+    )
+    relative_thumbnail_path: Optional[str] = Field(
+        default=None, description="相对于缩略图存储根目录的路径"
+    )
+    mime_type: str = Field(description="如 image/jpeg")
+    size_bytes: int = Field(description="文件大小")
     description: Optional[str] = Field(default=None, description="图片描述")
-    tags: Optional[str] = Field(default=None, description="标签（逗号分隔）")
-    upload_date: datetime = Field(default_factory=datetime.utcnow, description="上传时间")
-    category_id: int = Field(foreign_key="category.id", description="所属分类ID")
+    tags: Optional[str] = Field(
+        default=None, description="逗号分隔的标签字符串或JSON字符串"
+    )
+    category_id: int = Field(
+        foreign_key="category.id", index=True, description="所属类别ID"
+    )
 
 
 class Image(ImageBase, table=True):
-    """数据库图片模型
-    
-    继承自ImageBase并添加数据库特定字段
+    """图片数据库表模型
+
+    属性:
+        id (Optional[int]): 主键ID
+        upload_date (datetime): 图片上传日期和时间
+        category (Optional["Category"]): 图片所属的类别 (通过关系定义)
     """
-    id: Optional[int] = Field(default=None, primary_key=True, description="主键ID")
-    category: "Category" = Relationship(back_populates="images", description="关联分类")
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    upload_date: datetime = Field(
+        default_factory=datetime.utcnow, nullable=False, description="上传日期"
+    )
+
+    category: Optional["Category"] = Relationship(back_populates="images")  # type: ignore
 
 
 class ImageCreate(ImageBase):
-    """图片创建模型
-    
-    用于API创建接口的请求模型
-    """
+    """创建图片记录时使用的模型 (通常由后端内部使用，因为文件数据分开处理)"""
+
     pass
 
 
 class ImageRead(ImageBase):
-    """图片响应模型
-    
-    用于API响应数据的模型，包含完整字段
-    """
-    id: int = Field(description="图片ID")
+    """读取图片信息时使用的模型"""
+
+    id: int
+    upload_date: datetime
+    # 若直接需要类别信息，可选择性包含，但通常通过 CategoryReadWithImages 访问
+    # category: Optional[CategoryRead] = None
 
 
 class ImageUpdate(SQLModel):
-    """图片更新模型
-    
-    定义允许更新的字段
+    """更新图片元数据时使用的模型
+
+    属性:
+        description (Optional[str]): 新的图片描述
+        tags (Optional[str]): 新的图片标签
+        category_id (Optional[int]): 可选，用于将图片移动到新的类别
     """
-    description: Optional[str] = Field(default=None, description="更新描述信息")
-    tags: Optional[str] = Field(default=None, description="更新标签信息")
-    category_id: Optional[int] = Field(default=None, description="更新分类ID")
+
+    description: Optional[str] = None
+    tags: Optional[str] = None
+    category_id: Optional[int] = None
+
+
+# 有关前向引用的处理，请参考 models/__init__.py 中的说明
