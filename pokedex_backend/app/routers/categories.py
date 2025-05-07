@@ -13,7 +13,7 @@ from app.models import Category, CategoryCreate, CategoryRead, CategoryReadWithI
 from app.crud import category_crud
 
 router = APIRouter(
-    prefix="/api/categories",
+    prefix="/categories",
     tags=["类别管理"],
     responses={404: {"description": "未找到"}},
 )

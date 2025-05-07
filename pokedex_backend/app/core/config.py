@@ -1,14 +1,14 @@
 """
 应用配置模块
 
-包含所有环境相关配置设置，使用 Pydantic 进行验证和加载。
+包含所有环境相关配置设置，使用 Pydantic-Settings 进行验证和加载。
 配置可以从环境变量或 .env 文件中读取。
 """
 
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-from pydantic import BaseSettings, validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录的确定 (假设config.py在 app/core/ 下)
 # APP_DIR = Path(__file__).resolve().parent.parent # app/
@@ -19,9 +19,10 @@ APP_STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"  # app/stati
 
 
 class Settings(BaseSettings):
-    """全局配置类，继承自 Pydantic 的 BaseSettings
+    """全局配置类
 
-    属性将自动从环境变量或 .env 文件中加载（注意大小写敏感性，通常环境变量为大写）。
+    属性将自动从环境变量或 .env 文件中加载。
+    环境变量名通常是字段名的大写版本（如果 model_config 中 case_sensitive=False）。
     """
 
     # 项目信息
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
     # API 配置
     api_v1_prefix: str = "/api"  # 根据README.md 4.3节，统一前缀为 /api
 
-    # 数据库配置
+    # 数据库配置 (环境变量: DATABASE_URL)
     database_url: str = "sqlite:///./pokedex.db"  # SQLite文件将创建在运行命令的目录下
     # 若要固定位置，例如在 pokedex_backend 目录下: "sqlite:///pokedex.db"
     # 或者绝对路径: f"sqlite:///{PROJECT_ROOT}/pokedex.db"
@@ -56,18 +57,9 @@ class Settings(BaseSettings):
     thumbnail_size: Tuple[int, int] = (256, 256)
     thumbnail_quality: int = 85  # JPEG 缩略图质量
 
-    # CORS 配置 (从环境变量加载，例如 BACKEND_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173")
-    backend_cors_origins_str: Optional[str] = None  # 从环境变量读取为字符串
+    # CORS 配置 (环境变量: BACKEND_CORS_ORIGINS - 逗号分隔的字符串)
+    # pydantic-settings 会自动将环境变量中逗号分隔的字符串转换为 List[str]
     backend_cors_origins: List[str] = []
-
-    @validator("backend_cors_origins", pre=True, always=True)
-    def assemble_cors_origins(cls, v, values):
-        if isinstance(v, list) and v:  # 如果直接在代码中提供了列表
-            return v
-        origins_str = values.get("backend_cors_origins_str")
-        if isinstance(origins_str, str):
-            return [origin.strip() for origin in origins_str.split(",")]
-        return []  # 默认空列表，表示不启用或按FastAPI默认处理
 
     # 静态文件服务 (main.py 中会用到这些来推断挂载点和目录)
     # static_files_mount_url: str = "/static/uploads" # 由main.py硬编码或推断
@@ -78,14 +70,13 @@ class Settings(BaseSettings):
     server_port: int = 8000
     log_level: str = "info"
 
-    class Config:
-        """Pydantic BaseSettings 配置类
-        告诉 Pydantic 从 .env 文件加载环境变量，并使其不区分大小写（如果需要）。
-        """
-
-        env_file: str = ".env"
-        env_file_encoding: str = "utf-8"
-        case_sensitive: bool = False  # 环境变量通常是大写的
+    # Pydantic-Settings 配置
+    model_config = SettingsConfigDict(
+        env_file=".env",  # 指定 .env 文件名
+        env_file_encoding="utf-8",  # .env 文件编码
+        case_sensitive=False,  # 环境变量名不区分大小写
+        extra="ignore",  # 忽略 .env 文件中未在Settings类中定义的额外变量
+    )
 
 
 settings = Settings()

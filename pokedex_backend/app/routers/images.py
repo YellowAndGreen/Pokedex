@@ -6,6 +6,7 @@
 from typing import List, Optional
 from pathlib import Path
 import asyncio
+import aiofiles.os as aio_os
 
 from fastapi import (
     APIRouter,
@@ -29,7 +30,7 @@ from app.services.image_processing_service import (
 from app.core.config import settings
 
 router = APIRouter(
-    prefix="/api/images",
+    prefix="/images",
     tags=["图片管理"],
     responses={404: {"description": "未找到"}},
 )
@@ -136,9 +137,7 @@ async def upload_image(
             else None
         ),
         mime_type=file.content_type,  # type: ignore
-        size_bytes=(
-            await asyncio.os.stat(image_absolute_path)
-        ).st_size,  # 异步获取文件大小
+        size_bytes=(await aio_os.stat(image_absolute_path)).st_size,  # 异步获取文件大小
         description=description,
         tags=tags,
         category_id=category_id,
