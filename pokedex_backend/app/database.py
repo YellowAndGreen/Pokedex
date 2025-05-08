@@ -38,6 +38,10 @@ def get_session() -> Session:
             yield session
             session.commit()  # 请求正常处理完毕，提交事务
         except Exception:
+            import traceback
+
+            print("--- AN EXCEPTION OCCURRED IN get_session ---")
+            traceback.print_exc()
             session.rollback()  # 处理请求过程中发生异常，回滚事务
             raise
         finally:

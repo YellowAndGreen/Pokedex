@@ -23,7 +23,7 @@ def get_pinyin_full(text: str) -> str:
     if not text:
         return ""
     return "".join(
-        item[0] for item in pinyin(text, style=Style.NORMAL, heteronyms=False)
+        item[0] for item in pinyin(text, style=Style.NORMAL, heteronym=False)
     ).lower()
 
 
@@ -40,7 +40,7 @@ def get_pinyin_initials(text: str) -> str:
     if not text:
         return ""
     return "".join(
-        item[0][0] for item in pinyin(text, style=Style.FIRST_LETTER, heteronyms=False)
+        item[0][0] for item in pinyin(text, style=Style.FIRST_LETTER, heteronym=False)
     ).lower()
 
 
