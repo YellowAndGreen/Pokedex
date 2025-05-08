@@ -107,7 +107,7 @@ export const setupMocks = () => {
   // Images endpoints
   mock.onPost('/api/images/upload/').reply(config => {
     const formData = config.data as FormData;
-    const categoryId = formData.get('categoryId') as string;
+    const categoryId = formData.get('category_id') as string; // 保持与后端字段名一致
     const file = formData.get('file') as File;
 
     if (!mockCategories.find(c => c.id === categoryId)) {
@@ -115,19 +115,21 @@ export const setupMocks = () => {
     }
 
     const newImage: ImageRead = {
-      id: crypto.randomUUID(),
-      title: file.name,
-      description: formData.get('description') as string || undefined,
-      imageUrl: URL.createObjectURL(file),
-      categoryId,
-      createdDate: new Date().toISOString(),
-      metadata: {
-        width: 1920,
-        height: 1080,
-        fileSize: `${(file.size / 1024 / 1024).toFixed(1)}MB`,
-        format: file.type.split('/')[1].toUpperCase()
-      }
-    };
+    id: crypto.randomUUID(),
+    title: file.name,
+    description: formData.get('description') as string || undefined,
+    imageUrl: URL.createObjectURL(file),
+    categoryId,
+    createdDate: new Date().toISOString(),
+    metadata: {
+      width: 1920,
+      height: 1080,
+      fileSize: `${(file.size / 1024 / 1024).toFixed(1)}MB`,
+      format: file.type.split('/')[1].toUpperCase(),
+      cameraModel: 'Unknown',
+      location: 'Unspecified'
+    }
+  };
 
     const categoryIndex = mockCategoriesWithImages.findIndex(c => c.id === categoryId);
     mockCategoriesWithImages[categoryIndex].images.push(newImage);
