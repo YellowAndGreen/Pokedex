@@ -43,7 +43,7 @@ const submitForm = async () => {
     if (valid) {
       const dataToSubmit: CategoryCreate = {
         name: form.value.name,
-        description: form.value.description === '' ? null : form.value.description,
+        description: form.value.description === '' ? undefined : form.value.description,
       };
       emit('submit', dataToSubmit);
     }

@@ -1,9 +1,8 @@
-import axios, { AxiosRequestConfig } from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { CategoryRead, CategoryReadWithImages, ImageRead, CategoryCreate, ImageUpdate } from '../types';
 import { apiInstance } from './apiService';
 
-const mockCategories: CategoryRead[] = [
+let mockCategories: CategoryRead[] = [
   {
     id: '03e9d0a1-5b5a-4b7d-9e9a-3a1b3b4b5b6b',
     name: 'Hummingbirds',
@@ -39,20 +38,27 @@ const mockCategories: CategoryRead[] = [
 ];
 
 const generateMockImages = (categoryId: string, count: number): ImageRead[] => {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `${categoryId}_image_${(i + 1).toString().padStart(3, '0')}`,
-    title: `Sample Image ${i + 1}`,
-    description: `Photo #${i + 1} in ${mockCategories.find(c => c.id === categoryId)?.name}`,
-    imageUrl: `https://cdn.example.com/images/${categoryId}/image-${i + 1}.jpg`,
-    categoryId,
-    createdDate: new Date().toISOString(),
-    metadata: {
-      width: 1920,
-      height: 1080,
-      fileSize: '2.4MB',
-      format: 'JPEG'
-    }
-  }));
+  return Array.from({ length: count }, (_, i) => {
+    const imageIndex = i + 1;
+    const category = mockCategories.find(c => c.id === categoryId);
+    const categoryName = category ? category.name : 'Category';
+    const imageTitle = `Sample Image ${imageIndex} for ${categoryName}`;
+
+    return {
+      id: `${categoryId}_image_${imageIndex.toString().padStart(3, '0')}`,
+      title: imageTitle,
+      description: `Photo #${imageIndex} in ${categoryName}`,
+      imageUrl: `https://via.placeholder.com/400x300/CCCCCC/000000?text=${encodeURIComponent(imageTitle.replace(/ /g, '+'))}`,
+      categoryId,
+      createdDate: new Date().toISOString(),
+      metadata: {
+        width: 400,
+        height: 300,
+        fileSize: '10KB', // Example, actual size will vary
+        format: 'PNG' // Placeholder images are typically PNG or JPEG
+      }
+    };
+  });
 };
 
 let mockCategoriesWithImages: CategoryReadWithImages[] = mockCategories.map(category => ({
@@ -64,11 +70,56 @@ export const setupMocks = () => {
   const mock = new MockAdapter(apiInstance, { delayResponse: 500 });
 
   // Categories endpoints
-  mock.onGet(/\/api\/categories\/?/).reply(200, [...mockCategories]);
+  mock.onGet(/\/api\/categories\/?$/).reply(200, [...mockCategories]);
+
   mock.onGet(/\/api\/categories\/([a-f0-9-]+)\/?/).reply(config => {
-    const categoryId = config.url?.split('/')[3] || '';
-    const category = mockCategoriesWithImages.find(c => c.id === categoryId);
-    return category ? [200, category] : [404, { detail: 'Category not found' }];
+    console.log('[MockAdapter] config received for /api/categories/:id/:', JSON.parse(JSON.stringify(config, null, 2)));
+
+    let categoryIdFromUrl = '';
+    const urlToParse = config.url || ''; 
+
+    // Check if the URL path matches the expected pattern for extracting the ID
+    // The regex used in onGet is /\/api\/categories\/([a-f0-9-]+)\/?/
+    // match[0] would be the full matched part of the URL (e.g., /api/categories/some-id/)
+    // match[1] would be the captured ID (e.g., some-id)
+    const idMatcher = /\/api\/categories\/([a-f0-9-]+)\/?/;
+    const match = urlToParse.match(idMatcher);
+
+    if (match && match[1]) {
+      categoryIdFromUrl = match[1];
+      console.log(`[MockAdapter] Extracted ID using regex match on urlToParse ('${urlToParse}'): "${categoryIdFromUrl}"`);
+    } else {
+      // Fallback or more verbose splitting if direct regex match on config.url fails
+      console.log(`[MockAdapter] Could not extract ID using direct regex match on urlToParse: "${urlToParse}". Attempting split based logic...`);
+      if (config.baseURL && urlToParse.startsWith(config.baseURL)) {
+        const pathAfterBase = urlToParse.substring(config.baseURL.length);
+        const parts = pathAfterBase.split('/').filter(p => p); // filter out empty strings
+        if (parts.length > 1 && parts[0] === 'categories') { //e.g. /categories/id -> parts = [categories, id]
+            categoryIdFromUrl = parts[1];
+        }
+        console.log(`[MockAdapter] Attempting to parse ID from pathAfterBase: "${pathAfterBase}", categoryIdFromUrl: "${categoryIdFromUrl}"`);
+      } else if (urlToParse.startsWith('/api/categories/')) {
+        categoryIdFromUrl = urlToParse.split('/')[3] || '';
+        console.log(`[MockAdapter] Attempting to parse ID from absolute path: "${urlToParse}", split[3]: "${categoryIdFromUrl}"`);
+      } else {
+        const parts = urlToParse.split('/').filter(p => p); // filter out empty strings
+        if (parts.length > 1 && parts[0] === 'categories') { //e.g. categories/id -> parts = [categories, id]
+            categoryIdFromUrl = parts[1];
+        }
+        console.log(`[MockAdapter] Attempting to parse ID from relative path: "${urlToParse}", categoryIdFromUrl: "${categoryIdFromUrl}"`);
+      }
+    }
+
+    console.log('[MockAdapter] Final determined categoryIdFromUrl:', categoryIdFromUrl);
+
+    const category = mockCategoriesWithImages.find(c => c.id === categoryIdFromUrl);
+    if (category) {
+      console.log('[MockAdapter] onGet /api/categories/:id - found category:', JSON.parse(JSON.stringify(category)));
+      return [200, category];
+    } else {
+      console.log('[MockAdapter] onGet /api/categories/:id - category NOT FOUND for ID:', categoryIdFromUrl);
+      return [404, { detail: 'Category not found' }];
+    }
   });
 
   mock.onPost('/api/categories/').reply(config => {
@@ -151,13 +202,47 @@ export const setupMocks = () => {
     return updatedImage ? [200, updatedImage] : [404, { detail: 'Image not found' }];
   });
 
-  mock.onDelete(/\/api\/images\/([a-f0-9-]+)\/?/).reply(config => {
-    const imageId = config.url?.split('/')[3] || '';
-    mockCategoriesWithImages = mockCategoriesWithImages.map(category => ({
-      ...category,
-      images: category.images.filter(img => img.id !== imageId)
-    }));
-    return [204];
+  mock.onDelete(/\/api\/images\/([a-f0-9-]+_image_\d+)\/?/).reply(config => {
+    console.log('[MockAdapter] onDelete /api/images/:id - config:', JSON.parse(JSON.stringify(config, null, 2)));
+
+    let imageIdFromUrl = '';
+    const urlToParse = config.url || '';
+    const idMatcher = /\/images\/([a-f0-9-]+_image_\d+)\/?/;
+    const match = urlToParse.match(idMatcher);
+
+    if (match && match[1]) {
+      imageIdFromUrl = match[1];
+      console.log(`[MockAdapter] onDelete - Extracted ID using regex match on urlToParse ('${urlToParse}'): "${imageIdFromUrl}"`);
+    } else {
+      console.log(`[MockAdapter] onDelete - Could not extract image ID using direct regex match on urlToParse: "${urlToParse}" (is it absolute /api/images/id?)`);
+      const absIdMatcher = /\/api\/images\/([a-f0-9-]+_image_\d+)\/?/;
+      const absMatch = urlToParse.match(absIdMatcher);
+      if (absMatch && absMatch[1]) {
+        imageIdFromUrl = absMatch[1];
+        console.log(`[MockAdapter] onDelete - Extracted ID using regex match for absolute path on urlToParse ('${urlToParse}'): "${imageIdFromUrl}"`);
+      }
+    }
+    console.log('[MockAdapter] onDelete - Final determined imageIdFromUrl:', imageIdFromUrl);
+
+    let imageFoundAndRemoved = false;
+    if (imageIdFromUrl) { 
+      mockCategoriesWithImages = mockCategoriesWithImages.map(category => {
+        const initialImageCount = category.images.length;
+        const newImages = category.images.filter(img => img.id !== imageIdFromUrl);
+        if (newImages.length < initialImageCount) {
+          imageFoundAndRemoved = true;
+        }
+        return { ...category, images: newImages };
+      });
+    }
+
+    if (imageFoundAndRemoved) {
+      console.log('[MockAdapter] Image removed from mockCategoriesWithImages, id:', imageIdFromUrl);
+      return [204]; 
+    } else {
+      console.log('[MockAdapter] Image NOT FOUND for deletion or invalid ID, id:', imageIdFromUrl);
+      return [404, { detail: 'Image not found for deletion' }];
+    }
   });
 
   console.log('Mock adapter setup complete');

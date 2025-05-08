@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { 
   ElCard, 
   ElImage, 
   ElButton, 
   ElPopconfirm, 
-  ElTag,
   ElTooltip
 } from 'element-plus';
 import type { ImageRead } from '../types';
@@ -15,48 +13,22 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'view-detail', imageId: number): void;
-  (e: 'edit-meta', imageId: number): void;
-  (e: 'delete', imageId: number): void;
+  (e: 'view-detail', imageId: string): void;
+  (e: 'edit-meta', imageId: string): void;
+  (e: 'delete', imageId: string): void;
 }>();
 
-// Computed URLs for the image sources
-const thumbnailUrl = computed(() => {
-  // In a real app, this would be a properly constructed URL
-  return `/static/uploads/thumbnails/${props.image.relative_thumbnail_path}`;
-});
-
-const imageUrl = computed(() => {
-  // In a real app, this would be a properly constructed URL
-  return `/static/uploads/images/${props.image.relative_file_path}`;
-});
-
-// Format the file size in a human-readable format
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' bytes';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-};
-
-// For demonstration purposes, use placeholder images
-const placeholderUrl = computed(() => {
-  // Using Pexels for bird images (in real app, we'd use actual uploaded images)
-  const birdImages = [
-    'https://images.pexels.com/photos/326900/pexels-photo-326900.jpeg',
-    'https://images.pexels.com/photos/1545548/pexels-photo-1545548.jpeg',
-    'https://images.pexels.com/photos/1133957/pexels-photo-1133957.jpeg',
-    'https://images.pexels.com/photos/2662434/pexels-photo-2662434.jpeg'
-  ];
-  // Use image ID to select a consistent placeholder
-  return birdImages[props.image.id % birdImages.length];
-});
+const handleDeleteEmit = (id: string) => {
+  console.log('[ImageThumbnail] Emitting delete for image.id:', id);
+  emit('delete', id);
+}
 </script>
 
 <template>
   <ElCard class="image-thumbnail" shadow="hover">
     <ElImage
-      :src="placeholderUrl" 
-      :preview-src-list="[placeholderUrl]"
+      :src="props.image.imageUrl" 
+      :preview-src-list="[props.image.imageUrl]"
       fit="cover"
       lazy
       class="thumbnail-image"
@@ -64,7 +36,7 @@ const placeholderUrl = computed(() => {
     />
     
     <div class="image-info">
-      <div class="image-title">{{ image.original_filename }}</div>
+      <div class="image-title">{{ image.title }}</div>
       
       <!-- Show a snippet of description -->
       <ElTooltip v-if="image.description" :content="image.description" placement="top">
@@ -75,8 +47,8 @@ const placeholderUrl = computed(() => {
         </div>
       </ElTooltip>
       
-      <!-- Tags -->
-      <div class="image-tags">
+      <!-- Tags removed -->
+      <!-- <div class="image-tags">
         <ElTag 
           v-for="tag in image.tags" 
           :key="tag" 
@@ -86,12 +58,12 @@ const placeholderUrl = computed(() => {
         >
           {{ tag }}
         </ElTag>
-      </div>
+      </div> -->
       
       <!-- File info -->
       <div class="file-info">
-        <span>{{ formatFileSize(image.size_bytes) }}</span>
-        <span class="upload-date">{{ new Date(image.upload_date).toLocaleDateString() }}</span>
+        <span>{{ image.metadata.fileSize }}</span>
+        <span class="upload-date">{{ new Date(image.createdDate).toLocaleDateString() }}</span>
       </div>
       
       <!-- Action buttons -->
@@ -116,7 +88,7 @@ const placeholderUrl = computed(() => {
           title="Are you sure you want to delete this image?"
           confirm-button-text="Delete"
           cancel-button-text="Cancel"
-          @confirm="emit('delete', image.id)"
+          @confirm="handleDeleteEmit(image.id)"
         >
           <template #reference>
             <ElButton 

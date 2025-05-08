@@ -14,9 +14,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'view', categoryId: number): void;
+  (e: 'view', categoryId: string): void;
   (e: 'edit', category: CategoryRead): void;
-  (e: 'delete', categoryId: number): void;
+  (e: 'delete', categoryId: string): void;
 }>();
 
 // For demonstration, use placeholder images
@@ -29,7 +29,9 @@ const getBirdImageUrl = computed(() => {
     'https://images.pexels.com/photos/1618606/pexels-photo-1618606.jpeg'
   ];
   // Use category ID to select a consistent placeholder
-  return birdImages[props.category.id % birdImages.length];
+  // Convert first char of string ID to a number for modulo
+  const charCode = props.category.id.charCodeAt(0) || 0;
+  return birdImages[charCode % birdImages.length];
 });
 </script>
 
@@ -56,8 +58,8 @@ const getBirdImageUrl = computed(() => {
       <span class="image-count" v-if="imageCount !== undefined">
         {{ imageCount }} {{ imageCount === 1 ? 'image' : 'images' }}
       </span>
-      <span class="creation-date" v-if="category.created_at">
-        Added: {{ new Date(category.created_at).toLocaleDateString() }}
+      <span class="creation-date" v-if="category.createdDate">
+        Added: {{ new Date(category.createdDate).toLocaleDateString() }}
       </span>
       <span class="creation-date" v-else>
         Added: N/A

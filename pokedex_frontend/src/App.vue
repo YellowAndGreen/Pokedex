@@ -1,19 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { ElContainer, ElHeader, ElAside, ElMain, ElMenu, ElMenuItem, ElButton } from 'element-plus';
 import { useCategoryStore } from './store/categoryStore';
 
-const route = useRoute();
 const router = useRouter();
 const categoryStore = useCategoryStore();
-
-const activeCategoryId = computed(() => {
-  if (route.name === 'category-detail' && route.params.id) {
-    return Number(route.params.id);
-  }
-  return null;
-});
 
 const handleSelect = (key: string) => {
   if (key === 'home') {

@@ -12,9 +12,8 @@ import {
   ElImage,
   ElDescriptions,
   ElDescriptionsItem,
-  ElTag,
-  ElDivider,
-  ElInput
+  ElInput,
+  ElPopconfirm
 } from 'element-plus';
 import { useCategoryStore } from '../store/categoryStore';
 import { useImageStore } from '../store/imageStore';
@@ -39,24 +38,32 @@ const currentPage = ref(1);
 // Get category ID from route params
 const categoryId = computed(() => {
   const idParam = route.params.id;
-  if (Array.isArray(idParam)) { // Handle cases where param might be an array (though unlikely for :id)
-    return Number(idParam[0]);
+  if (Array.isArray(idParam)) {
+    return String(idParam[0]);
   }
-  return Number(idParam);
+  return String(idParam);
 });
 
 // Filtered images based on search
 const filteredImages = computed(() => {
-  if (!categoryStore.currentCategoryDetail?.images) return [];
+  console.log('[View] filteredImages computed. currentCategoryDetail:', JSON.parse(JSON.stringify(categoryStore.currentCategoryDetail))); // Deep copy
+  if (!categoryStore.currentCategoryDetail?.images) {
+    console.log('[View] filteredImages: currentCategoryDetail or images is null/undefined. Returning [].');
+    return [];
+  }
   
-  if (!searchQuery.value) return categoryStore.currentCategoryDetail.images;
+  if (!searchQuery.value) {
+    console.log('[View] filteredImages - no search query, returning all images from currentCategoryDetail. Count:', categoryStore.currentCategoryDetail.images.length);
+    return categoryStore.currentCategoryDetail.images;
+  }
   
   const query = searchQuery.value.toLowerCase();
-  return categoryStore.currentCategoryDetail.images.filter(image => 
-    image.description.toLowerCase().includes(query) || 
-    image.tags.some(tag => tag.toLowerCase().includes(query)) ||
-    image.original_filename.toLowerCase().includes(query)
+  const result = categoryStore.currentCategoryDetail.images.filter(image => 
+    (image.title.toLowerCase().includes(query)) ||
+    (image.description?.toLowerCase().includes(query) || false)
   );
+  console.log('[View] filteredImages - with search query, result count:', result.length);
+  return result;
 });
 
 // Paginated images
@@ -67,39 +74,36 @@ const paginatedImages = computed(() => {
 
 onMounted(async () => {
   const currentId = categoryId.value;
-  if (!isNaN(currentId) && currentId > 0) { // Check if ID is a valid number and positive
+  console.log('[View] onMounted - categoryId from route:', currentId);
+  if (currentId) {
     await categoryStore.fetchCategoryWithImages(currentId);
   } else {
     console.error('Invalid category ID in onMounted:', route.params.id);
-    // Optionally, redirect to a 404 page or show an error message
-    // categoryStore.setError('Invalid category ID'); // Example of setting an error
   }
 });
 
 // Watch for route changes
 watch(() => route.params.id, async (newIdParam) => {
-  let newIdAsNumber: number;
+  let newId: string;
   if (Array.isArray(newIdParam)) {
-    newIdAsNumber = Number(newIdParam[0]);
+    newId = String(newIdParam[0]);
   } else {
-    newIdAsNumber = Number(newIdParam);
+    newId = String(newIdParam);
   }
+  console.log('[View] watch route.params.id - newId:', newId);
 
-  if (!isNaN(newIdAsNumber) && newIdAsNumber > 0) {
-    // Check if it's actually a different category to avoid redundant fetches
-    // categoryId.value might not have updated yet if this watch triggers before computed updates.
-    // So, compare with the current detail's ID if available, or just fetch if different from previous numeric ID.
-    if (categoryStore.currentCategoryDetail?.id !== newIdAsNumber) {
-        await categoryStore.fetchCategoryWithImages(newIdAsNumber);
-        currentPage.value = 1; // Reset pagination when category changes
+  if (newId) {
+    if (categoryStore.currentCategoryDetail?.id !== newId) {
+        console.log('[View] watch - fetching new category data for ID:', newId);
+        await categoryStore.fetchCategoryWithImages(newId);
+        currentPage.value = 1;
+    } else {
+        console.log('[View] watch - ID is the same as currentCategoryDetail, not fetching.');
     }
   } else {
     console.error('Invalid category ID in watch:', newIdParam);
-    // Handle invalid ID, e.g., clear details, show error
-    // categoryStore.clearCurrentCategoryDetail();
-    // categoryStore.setError('Invalid category ID after route change');
   }
-}, { immediate: false }); // Set immediate to false if onMounted handles initial load
+}, { immediate: false });
 
 const openUploadDialog = () => {
   uploadDialogVisible.value = true;
@@ -112,11 +116,10 @@ const closeUploadDialog = () => {
 const handleUploadSuccess = async () => {
   uploadDialogVisible.value = false;
   const currentId = categoryId.value;
-  if (!isNaN(currentId) && currentId > 0) {
+  if (currentId) {
     await categoryStore.fetchCategoryWithImages(currentId);
   } else {
     console.error('Upload success but category ID is invalid, cannot refresh category images. ID was:', currentId, 'From route params:', route.params.id);
-    // Optionally, you might want to inform the user or redirect
   }
 };
 
@@ -124,7 +127,7 @@ const handleUploadError = (error: Error) => {
   console.error('Upload error:', error);
 };
 
-const viewImageDetail = (imageId: number) => {
+const viewImageDetail = (imageId: string) => {
   if (categoryStore.currentCategoryDetail?.images) {
     const image = categoryStore.currentCategoryDetail.images.find(img => img.id === imageId);
     if (image) {
@@ -134,47 +137,64 @@ const viewImageDetail = (imageId: number) => {
   }
 };
 
-const editImageMeta = (imageId: number) => {
+const editImageMeta = (imageId: string) => {
   if (categoryStore.currentCategoryDetail?.images) {
     const image = categoryStore.currentCategoryDetail.images.find(img => img.id === imageId);
     if (image) {
       selectedImage.value = image;
-      detailDialogVisible.value = false;
       metaDialogVisible.value = true;
     }
   }
 };
 
-const deleteImage = async (imageId: number) => {
+const deleteImage = async (imageId: string) => {
+  console.log('[View] deleteImage called with imageId:', imageId, 'and current categoryId:', categoryId.value);
   try {
     await imageStore.deleteImage(imageId, categoryId.value);
+    console.log('[View] imageStore.deleteImage finished for imageId:', imageId);
+    if (selectedImage.value && selectedImage.value.id === imageId) {
+      detailDialogVisible.value = false;
+      selectedImage.value = null;
+    }
+    const currentCatId = categoryId.value;
+    if (currentCatId) {
+      console.log('[View] Refreshing category after delete for categoryId:', currentCatId);
+      await categoryStore.fetchCategoryWithImages(currentCatId);
+    }
   } catch (error) {
-    console.error('Delete image error:', error);
+    console.error('[View] Delete image error in view for imageId:', imageId, error);
   }
 };
 
-const handleMetaFormSubmit = async (data: ImageUpdate & { id: number }) => {
+const handleDeleteConfirm = () => {
+  if (selectedImage.value) {
+    console.log('[View] handleDeleteConfirm called for selectedImage.id:', selectedImage.value.id);
+    deleteImage(selectedImage.value.id);
+  } else {
+    console.warn('[View] handleDeleteConfirm called but no selectedImage.');
+  }
+};
+
+const handleMetaFormSubmit = async (updateData: ImageUpdate, imageId: string) => {
   try {
-    const { id, ...updateData } = data;
-    await imageStore.updateImageMetadata(id, updateData);
+    await imageStore.updateImageMetadata(imageId, updateData);
     metaDialogVisible.value = false;
+    const currentCatId = categoryId.value;
+    if (currentCatId) {
+      await categoryStore.fetchCategoryWithImages(currentCatId);
+      if (selectedImage.value && selectedImage.value.id === imageId) {
+        const updatedImg = categoryStore.currentCategoryDetail?.images.find(i => i.id === imageId);
+        if (updatedImg) selectedImage.value = updatedImg;
+        else detailDialogVisible.value = false;
+      }
+    }
   } catch (error) {
     console.error('Update metadata error:', error);
   }
 };
 
-const closeMetaDialog = () => {
-  metaDialogVisible.value = false;
-};
-
 const goBack = () => {
   router.push('/');
-};
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' bytes';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 };
 </script>
 
@@ -216,7 +236,7 @@ const formatFileSize = (bytes: number): string => {
       <div class="search-filters">
         <ElInput
           v-model="searchQuery"
-          placeholder="Search by description, tags, or filename..."
+          placeholder="Search by title..."
           clearable
           class="search-input"
         >
@@ -281,80 +301,52 @@ const formatFileSize = (bytes: number): string => {
     </ElDialog>
     
     <!-- Image Detail Dialog -->
-    <ElDialog
+    <ElDialog 
+      v-if="selectedImage"
       v-model="detailDialogVisible"
-      :title="selectedImage?.original_filename"
-      width="70%"
-      destroy-on-close
+      :title="selectedImage.title" 
+      width="60%"
+      @closed="selectedImage = null"
     >
-      <div v-if="selectedImage" class="image-detail">
-        <div class="image-detail-content">
-          <div class="detail-image-container">
-            <!-- For demo, using a placeholder image -->
+      <div class="image-detail-content">
+        <ElRow :gutter="20">
+          <ElCol :span="12">
             <ElImage 
-              :src="`https://images.pexels.com/photos/${selectedImage.id % 10 + 1}/bird-photo.jpg`" 
-              fit="contain"
-              :preview-src-list="[`https://images.pexels.com/photos/${selectedImage.id % 10 + 1}/bird-photo.jpg`]"
               class="detail-image"
+              :src="selectedImage.imageUrl" 
+              :preview-src-list="[selectedImage.imageUrl]"
+              fit="contain"
             />
-          </div>
-          
-          <div class="image-metadata">
-            <ElDescriptions border :column="1" class="meta-descriptions">
-              <ElDescriptionsItem label="File Name">
-                {{ selectedImage.original_filename }}
+          </ElCol>
+          <ElCol :span="12">
+            <ElDescriptions :column="1" border>
+              <ElDescriptionsItem label="Title">{{ selectedImage.title }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Description">{{ selectedImage.description || 'N/A' }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Category">{{ categoryStore.currentCategoryDetail?.name }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Format">{{ selectedImage.metadata.format }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Dimensions">
+                {{ selectedImage.metadata.width }} x {{ selectedImage.metadata.height }}
               </ElDescriptionsItem>
-              
-              <ElDescriptionsItem label="File Type">
-                {{ selectedImage.mime_type }}
-              </ElDescriptionsItem>
-              
-              <ElDescriptionsItem label="File Size">
-                {{ formatFileSize(selectedImage.size_bytes) }}
-              </ElDescriptionsItem>
-              
-              <ElDescriptionsItem label="Upload Date">
-                {{ new Date(selectedImage.upload_date).toLocaleString() }}
-              </ElDescriptionsItem>
-              
-              <ElDescriptionsItem label="Description">
-                {{ selectedImage.description || 'No description provided' }}
-              </ElDescriptionsItem>
-              
-              <ElDescriptionsItem label="Tags">
-                <div v-if="selectedImage.tags.length" class="tag-container">
-                  <ElTag 
-                    v-for="tag in selectedImage.tags" 
-                    :key="tag" 
-                    type="info" 
-                    size="small"
-                    class="detail-tag"
-                  >
-                    {{ tag }}
-                  </ElTag>
-                </div>
-                <span v-else>No tags</span>
-              </ElDescriptionsItem>
+              <ElDescriptionsItem label="File Size">{{ selectedImage.metadata.fileSize }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Uploaded">{{ new Date(selectedImage.createdDate).toLocaleString() }}</ElDescriptionsItem>
             </ElDescriptions>
-            
-            <div class="detail-actions">
-              <ElButton type="primary" @click="editImageMeta(selectedImage.id)">
-                Edit Metadata
-              </ElButton>
-              
-              <ElButton 
-                type="danger" 
-                @click="() => { 
-                  deleteImage(selectedImage.id);
-                  detailDialogVisible = false;
-                }"
-              >
-                Delete Image
-              </ElButton>
-            </div>
-          </div>
-        </div>
+          </ElCol>
+        </ElRow>
       </div>
+      <template #footer>
+        <ElButton @click="detailDialogVisible = false">Close</ElButton>
+        <ElButton type="primary" @click="editImageMeta(String(selectedImage!.id))">
+          Edit Metadata
+        </ElButton>
+        <ElPopconfirm
+          title="Are you sure you want to delete this image?"
+          @confirm="handleDeleteConfirm"
+        >
+          <template #reference>
+            <ElButton type="danger">Delete Image</ElButton>
+          </template>
+        </ElPopconfirm>
+      </template>
     </ElDialog>
     
     <!-- Image Metadata Edit Dialog -->
@@ -362,13 +354,14 @@ const formatFileSize = (bytes: number): string => {
       v-model="metaDialogVisible"
       title="Edit Image Metadata"
       width="50%"
-      destroy-on-close
+      @closed="selectedImage = null" 
     >
-      <ImageMetaForm
-        v-if="selectedImage"
-        :initial-data="selectedImage"
-        @submit="handleMetaFormSubmit"
-        @cancel="closeMetaDialog"
+      <ImageMetaForm 
+        v-if="selectedImage" 
+        :initial-data="selectedImage" 
+        :categories="categoryStore.categories"
+        @submit="handleMetaFormSubmit" 
+        @cancel="metaDialogVisible = false"
       />
     </ElDialog>
   </div>

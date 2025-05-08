@@ -14,7 +14,7 @@ export const useImageStore = defineStore('image', () => {
     isUploading.value = true;
     error.value = null;
     const categoryStore = useCategoryStore();
-    const categoryId = Number(formData.get('category_id'));
+    const categoryId = formData.get('category_id') as string;
     
     try {
       const newImage = await apiService.uploadImageFile(formData);
@@ -34,7 +34,7 @@ export const useImageStore = defineStore('image', () => {
     }
   };
 
-  const updateImageMetadata = async (imageId: number, imageData: ImageUpdate) => {
+  const updateImageMetadata = async (imageId: string, imageData: ImageUpdate) => {
     isUpdating.value = true;
     error.value = null;
     const categoryStore = useCategoryStore();
@@ -43,8 +43,8 @@ export const useImageStore = defineStore('image', () => {
       const updatedImage = await apiService.updateImage(imageId, imageData);
       
       // Refresh the category images if we have the current category loaded
-      if (categoryStore.currentCategoryDetail && updatedImage.category_id) {
-        await categoryStore.fetchCategoryWithImages(updatedImage.category_id);
+      if (categoryStore.currentCategoryDetail && updatedImage.categoryId) {
+        await categoryStore.fetchCategoryWithImages(updatedImage.categoryId);
       }
       
       return updatedImage;
@@ -57,21 +57,23 @@ export const useImageStore = defineStore('image', () => {
     }
   };
 
-  const deleteImage = async (imageId: number, categoryId: number) => {
+  const deleteImage = async (imageId: string, categoryId: string) => {
+    console.log('[store] imageStore.deleteImage called with imageId:', imageId, 'categoryId:', categoryId);
     isDeleting.value = true;
     error.value = null;
     const categoryStore = useCategoryStore();
     
     try {
       await apiService.deleteImageById(imageId);
+      console.log('[store] apiService.deleteImageById finished for imageId:', imageId);
       
-      // Refresh the category images
       if (categoryId) {
+        console.log('[store] Refreshing category after delete for categoryId:', categoryId);
         await categoryStore.fetchCategoryWithImages(categoryId);
       }
     } catch (err: any) {
       error.value = err.message || 'Failed to delete image';
-      console.error('Error deleting image:', err);
+      console.error('[store] Error deleting image in store for imageId:', imageId, err);
       throw err;
     } finally {
       isDeleting.value = false;

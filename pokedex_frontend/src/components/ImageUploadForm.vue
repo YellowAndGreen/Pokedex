@@ -7,14 +7,16 @@ import {
   ElForm,
   ElFormItem,
   ElMessage,
-  genFileId
 } from 'element-plus';
 import type { UploadProps, UploadUserFile, UploadFile } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 
 const props = defineProps<{
-  categoryId: number;
+  categoryId: string;
 }>();
+
+// Destructure to acknowledge usage, even if only in template
+const { categoryId } = props;
 
 const emit = defineEmits<{
   (e: 'upload-success'): void;
@@ -25,8 +27,7 @@ const emit = defineEmits<{
 const formRef = ref<FormInstance>();
 const fileList = ref<UploadUserFile[]>([]);
 const form = reactive({
-  description: '',
-  tags: ''
+  description: ''
 });
 
 const rules = {
@@ -35,7 +36,7 @@ const rules = {
   ]
 };
 
-const handleExceed: UploadProps['onExceed'] = (files) => {
+const handleExceed: UploadProps['onExceed'] = (_files) => {
   ElMessage.warning(
     'Only one image can be uploaded at a time'
   );
@@ -56,16 +57,6 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
   return isImage && isLt5M;
 };
 
-const handleSuccess = () => {
-  ElMessage.success('Image uploaded successfully');
-  emit('upload-success');
-};
-
-const handleError = (error: Error) => {
-  ElMessage.error(`Upload failed: ${error.message}`);
-  emit('upload-error', error);
-};
-
 const submitForm = async () => {
   if (!formRef.value) return;
   
@@ -84,7 +75,6 @@ const submitForm = async () => {
         // Reset form
         fileList.value = [];
         form.description = '';
-        form.tags = '';
       } catch (error: any) {
         emit('upload-error', error);
       }
@@ -139,14 +129,6 @@ const handleRemove = (file: UploadFile) => {
       />
     </ElFormItem>
     
-    <ElFormItem label="Tags">
-      <ElInput
-        v-model="form.tags"
-        placeholder="Enter tags separated by commas"
-      />
-      <div class="tags-help">Example: nature, wildlife, forest</div>
-    </ElFormItem>
-    
     <input type="hidden" :value="categoryId" name="category_id" />
     
     <ElFormItem>
@@ -164,11 +146,5 @@ const handleRemove = (file: UploadFile) => {
 
 .image-uploader {
   width: 100%;
-}
-
-.tags-help {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
 }
 </style>

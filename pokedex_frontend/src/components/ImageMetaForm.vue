@@ -18,25 +18,26 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'submit', data: ImageUpdate & { id: number }): void;
+  (e: 'submit', data: ImageUpdate, imageId: string): void;
   (e: 'cancel'): void;
 }>();
 
 const categoryStore = useCategoryStore();
 const formRef = ref<FormInstance>();
 
-const form = reactive<ImageUpdate & { id: number }>({
+const form = reactive<ImageUpdate & { id: string }>({
   id: props.initialData.id,
+  title: props.initialData.title,
   description: props.initialData.description,
-  tags: props.initialData.tags,
-  category_id: props.initialData.category_id
+  categoryId: props.initialData.categoryId
 });
-
-const tagsString = ref(props.initialData.tags.join(', '));
 
 const rules = {
   description: [
     { max: 500, message: 'Description cannot exceed 500 characters', trigger: 'blur' }
+  ],
+  title: [
+    { max: 100, message: 'Title cannot exceed 100 characters', trigger: 'blur' }
   ]
 };
 
@@ -49,11 +50,14 @@ onMounted(async () => {
 const submitForm = async () => {
   if (!formRef.value) return;
   
-  await formRef.value.validate((valid) => {
+  await formRef.value.validate((valid: boolean) => {
     if (valid) {
-      // Convert tags string to array
-      form.tags = tagsString.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-      emit('submit', { ...form });
+      const updateData: ImageUpdate = {
+        title: form.title,
+        description: form.description,
+        categoryId: form.categoryId
+      };
+      emit('submit', updateData, form.id);
     }
   });
 };
@@ -71,9 +75,13 @@ const cancel = () => {
     label-width="120px"
     class="meta-form"
   >
-    <ElFormItem label="Category" prop="category_id">
+    <ElFormItem label="Title" prop="title">
+      <ElInput v-model="form.title" placeholder="Enter image title" />
+    </ElFormItem>
+
+    <ElFormItem label="Category" prop="categoryId">
       <ElSelect 
-        v-model="form.category_id" 
+        v-model="form.categoryId" 
         placeholder="Select category"
         class="full-width"
       >
@@ -93,14 +101,6 @@ const cancel = () => {
         :rows="4"
         placeholder="Enter image description"
       />
-    </ElFormItem>
-    
-    <ElFormItem label="Tags">
-      <ElInput
-        v-model="tagsString"
-        placeholder="Enter tags separated by commas"
-      />
-      <div class="tags-help">Example: nature, wildlife, forest</div>
     </ElFormItem>
     
     <ElFormItem>

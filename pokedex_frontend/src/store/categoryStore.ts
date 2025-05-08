@@ -24,15 +24,17 @@ export const useCategoryStore = defineStore('category', () => {
     }
   };
 
-  const fetchCategoryWithImages = async (categoryId: number) => {
+  const fetchCategoryWithImages = async (categoryId: string) => {
+    console.log('[store] fetchCategoryWithImages called with ID:', categoryId);
     isLoadingCategoryDetail.value = true;
     error.value = null;
     
     try {
       currentCategoryDetail.value = await apiService.getCategoryWithImages(categoryId);
+      console.log('[store] currentCategoryDetail updated:', JSON.parse(JSON.stringify(currentCategoryDetail.value))); // Deep copy for logging complex objects
     } catch (err: any) {
+      console.error('[store] Error fetching category with images:', err);
       error.value = err.message || 'Failed to load category details';
-      console.error('Error fetching category with images:', err);
     } finally {
       isLoadingCategoryDetail.value = false;
     }
@@ -52,7 +54,7 @@ export const useCategoryStore = defineStore('category', () => {
     }
   };
 
-  const updateCategory = async (categoryId: number, categoryData: CategoryCreate) => {
+  const updateCategory = async (categoryId: string, categoryData: CategoryCreate) => {
     error.value = null;
     
     try {
@@ -80,7 +82,7 @@ export const useCategoryStore = defineStore('category', () => {
     }
   };
 
-  const deleteCategory = async (categoryId: number) => {
+  const deleteCategory = async (categoryId: string) => {
     error.value = null;
     
     try {

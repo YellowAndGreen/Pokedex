@@ -26,8 +26,10 @@ const apiService = {
     return response.data;
   },
 
-  getCategoryWithImages: async (categoryId: number): Promise<CategoryReadWithImages> => {
+  getCategoryWithImages: async (categoryId: string): Promise<CategoryReadWithImages> => {
     const response = await api.get(`/categories/${categoryId}/`);
+    console.log('[apiService] getCategoryWithImages response.data:', JSON.parse(JSON.stringify(response.data)));
+    console.log('[apiService] getCategoryWithImages typeof response.data:', typeof response.data, 'isArray:', Array.isArray(response.data));
     return response.data;
   },
 
@@ -36,12 +38,12 @@ const apiService = {
     return response.data;
   },
 
-  putCategory: async (categoryId: number, data: CategoryCreate): Promise<CategoryRead> => {
+  putCategory: async (categoryId: string, data: CategoryCreate): Promise<CategoryRead> => {
     const response = await api.put(`/categories/${categoryId}/`, data);
     return response.data;
   },
 
-  deleteCategoryById: async (categoryId: number): Promise<void> => {
+  deleteCategoryById: async (categoryId: string): Promise<void> => {
     await api.delete(`/categories/${categoryId}/`);
   },
 
@@ -55,18 +57,20 @@ const apiService = {
     return response.data;
   },
 
-  getImage: async (imageId: number): Promise<ImageRead> => {
+  getImage: async (imageId: string): Promise<ImageRead> => {
     const response = await api.get(`/images/${imageId}/`);
     return response.data;
   },
 
-  updateImage: async (imageId: number, data: ImageUpdate): Promise<ImageRead> => {
+  updateImage: async (imageId: string, data: ImageUpdate): Promise<ImageRead> => {
     const response = await api.put(`/images/${imageId}/`, data);
     return response.data;
   },
 
-  deleteImageById: async (imageId: number): Promise<void> => {
+  deleteImageById: async (imageId: string): Promise<void> => {
+    console.log('[apiService] deleteImageById called with imageId:', imageId);
     await api.delete(`/images/${imageId}/`);
+    console.log('[apiService] api.delete /images/:id finished for imageId:', imageId);
   }
 };
 

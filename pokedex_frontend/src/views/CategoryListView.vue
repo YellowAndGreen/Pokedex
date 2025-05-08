@@ -30,7 +30,7 @@ const filteredCategories = computed(() => {
   const query = searchQuery.value.toLowerCase();
   return categoryStore.categories.filter(category => 
     category.name.toLowerCase().includes(query) || 
-    category.description.toLowerCase().includes(query)
+    (category.description?.toLowerCase().includes(query) || false)
   );
 });
 
@@ -50,7 +50,7 @@ const openEditDialog = (category: CategoryRead) => {
   dialogVisible.value = true;
 };
 
-const handleViewCategory = (categoryId: number) => {
+const handleViewCategory = (categoryId: string) => {
   router.push(`/categories/${categoryId}`);
 };
 
@@ -67,7 +67,7 @@ const handleFormSubmit = async (formData: CategoryCreate) => {
   }
 };
 
-const handleDeleteCategory = async (categoryId: number) => {
+const handleDeleteCategory = async (categoryId: string) => {
   try {
     await categoryStore.deleteCategory(categoryId);
   } catch (error) {
@@ -172,7 +172,7 @@ const closeDialog = () => {
     >
       <CategoryForm
         :is-edit-mode="isEditMode"
-        :initial-data="editingCategory"
+        :initial-data="editingCategory === null ? undefined : editingCategory"
         @submit="handleFormSubmit"
         @cancel="closeDialog"
       />
