@@ -11,8 +11,9 @@ from typing import List, Tuple, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录的确定 (假设config.py在 app/core/ 下)
-# APP_DIR = Path(__file__).resolve().parent.parent # app/
-# PROJECT_ROOT = APP_DIR.parent # pokedex_backend/
+APP_DIR = Path(__file__).resolve().parent.parent  # app/
+PROJECT_ROOT = APP_DIR.parent  # pokedex_backend/
+PROJECT_PARENT = PROJECT_ROOT.parent  # illustrated-photo-library/ (项目根目录)
 # STATIC_ROOT = PROJECT_ROOT / "static" # pokedex_backend/static/ (如果static在项目根)
 # 或者，如果 static 在 app/ 目录下，则：
 APP_STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"  # app/static/
@@ -34,9 +35,9 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api"  # 根据README.md 4.3节，统一前缀为 /api
 
     # 数据库配置 (环境变量: DATABASE_URL)
-    database_url: str = "sqlite:///./pokedex.db"  # SQLite文件将创建在运行命令的目录下
-    # 若要固定位置，例如在 pokedex_backend 目录下: "sqlite:///pokedex.db"
-    # 或者绝对路径: f"sqlite:///{PROJECT_ROOT}/pokedex.db"
+    # database_url: str = "sqlite:///./pokedex.db"  # SQLite文件将创建在运行命令的目录下
+    # 使用项目根目录的绝对路径，确保始终使用同一个数据库文件
+    database_url: str = f"sqlite:///{PROJECT_PARENT}/pokedex.db"
 
     # 文件存储路径 (基于 app/static/uploads/ 结构)
     # image_storage_root: Path = APP_STATIC_ROOT / "uploads" / "images"

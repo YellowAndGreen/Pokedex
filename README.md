@@ -394,3 +394,12 @@ conda create -n pokedex python=3.9
 conda activate pokedex
 python -m pip install --upgrade pip setuptools -i https://pypi.tuna.tsinghua.edu.cn/simple
 pip install -r pokedex_backend/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+运行：
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+npm run build
+npm run dev
+
+查看：
+http://localhost:8000/api/docs
