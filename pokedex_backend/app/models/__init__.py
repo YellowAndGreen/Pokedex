@@ -17,6 +17,15 @@ from .category_models import (
     CategoryReadWithImages,
 )
 from .image_models import Image, ImageBase, ImageCreate, ImageRead, ImageUpdate
+from .species_info_models import (
+    Species,
+    SpeciesBase,
+    SpeciesCreate,
+    SpeciesRead,
+    get_pinyin_full,
+    get_pinyin_initials,
+    populate_pinyin_for_species_create,
+)
 
 # 解析所有模型导入后的前向引用
 # 这对于使用字符串类型提示（如 List["Image"]）定义的关系至关重要
@@ -24,6 +33,8 @@ Category.update_forward_refs()
 Image.update_forward_refs()
 CategoryReadWithImages.update_forward_refs()
 ImageRead.update_forward_refs()
+Species.update_forward_refs()
+SpeciesRead.update_forward_refs()
 
 __all__ = [
     "Category",
@@ -36,4 +47,13 @@ __all__ = [
     "ImageCreate",
     "ImageRead",
     "ImageUpdate",
+    "Species",
+    "SpeciesBase",
+    "SpeciesCreate",
+    "SpeciesRead",
+    "get_pinyin_full",
+    "get_pinyin_initials",
+    "populate_pinyin_for_species_create",
 ]
+
+# This file makes Python treat the directory as a package.

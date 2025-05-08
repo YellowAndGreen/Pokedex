@@ -8,6 +8,7 @@
 
 from . import category_crud
 from . import image_crud
+from . import species_info_crud
 
 # 可选择性暴露具体CRUD函数，以便其他模块更清晰地导入
 # 例如:
@@ -17,4 +18,7 @@ from . import image_crud
 __all__ = [
     "category_crud",
     "image_crud",
+    "species_info_crud",
 ]
+
+# This file makes Python treat the directory as a package.

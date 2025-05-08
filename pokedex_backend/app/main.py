@@ -10,6 +10,10 @@ from pathlib import Path  # 确保导入 Path
 
 from app.database import create_db_and_tables, engine  # 引入数据库初始化函数和引擎
 from app.routers import categories, images  # 引入API路由模块
+from app.routers import species_info_router
+from app.models import (
+    species_info_models,
+)  # 导入此模块以确保SQLModel元数据包含Species表
 from app.core.config import settings
 
 # 在应用启动时创建数据库表 (如果尚不存在)
@@ -30,6 +34,8 @@ def create_application() -> FastAPI:
     settings.image_storage_root.mkdir(parents=True, exist_ok=True)
     settings.thumbnail_storage_root.mkdir(parents=True, exist_ok=True)
 
+    # 调用 create_db_and_tables 之前，确保所有模型（包括species_info_models中的）已被导入
+    # 上面的 'from app.models import species_info_models' 应该已确保这一点
     create_db_and_tables()  # 创建数据库表 (如果尚不存在)
 
     app = FastAPI(
@@ -84,6 +90,12 @@ def create_application() -> FastAPI:
     # 所有来自 categories 和 images 路由器的路径都将以 settings.api_v1_prefix 为前缀
     app.include_router(categories.router, prefix=settings.api_v1_prefix)
     app.include_router(images.router, prefix=settings.api_v1_prefix)
+    # 新增：包含物种信息API路由
+    # 使用 settings.api_v1_prefix 作为基础，并添加一个特定的路径段 /species
+    # The tag "Species Information" is already defined in species_info_router.py
+    app.include_router(
+        species_info_router.router, prefix=f"{settings.api_v1_prefix}/species"
+    )
 
     return app
 
