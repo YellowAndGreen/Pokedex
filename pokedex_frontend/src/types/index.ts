@@ -1,44 +1,48 @@
 export interface CategoryBase {
   name: string;
-  description: string | null;
+  description?: string;
 }
 
-export interface CategoryCreate extends CategoryBase {}
+export interface CategoryCreate extends CategoryBase {
+  thumbnail?: File;
+}
 
 export interface CategoryRead extends CategoryBase {
-  id: number;
-  created_at?: string;
-  updated_at?: string;
+  id: string;
+  thumbnailUrl: string;
+  createdDate: string;
+  updatedDate: string;
 }
 
 export interface ImageBase {
-  description: string | null;
-  tags: string[] | null;
+  title: string;
+  description?: string;
 }
 
 export interface ImageCreate {
-  category_id: number;
-  file: File;
-  description?: string | null;
-  tags?: string[] | null;
+  categoryId: string;
+  imageFile: File;
 }
 
 export interface ImageUpdate {
-  category_id?: number;
-  description?: string | null;
-  tags?: string[] | null;
+  title?: string;
+  description?: string;
+  categoryId?: string;
 }
 
 export interface ImageRead extends ImageBase {
-  id: number;
-  category_id: number;
-  original_filename: string;
-  stored_filename: string;
-  relative_file_path: string;
-  relative_thumbnail_path: string | null;
-  mime_type: string;
-  size_bytes: number;
-  upload_date: string;
+  id: string;
+  categoryId: string;
+  imageUrl: string;
+  createdDate: string;
+  metadata: {
+    width: number;
+    height: number;
+    fileSize: string;
+    format: string;
+    cameraModel?: string;
+    location?: string;
+  };
 }
 
 export interface CategoryReadWithImages extends CategoryRead {
