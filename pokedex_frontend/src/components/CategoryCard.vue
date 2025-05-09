@@ -68,35 +68,6 @@ const getBirdImageUrl = computed(() => {
         </span>
       </div>
     </div>
-    
-    <div class="category-actions" @click.stop>
-      <ElButton 
-        type="primary" 
-        @click.stop="emit('view', category.id)"
-      >
-        查看图片
-      </ElButton>
-      
-      <ElButton 
-        type="warning" 
-        @click.stop="emit('edit', category)"
-      >
-        编辑
-      </ElButton>
-      
-      <ElPopconfirm
-        title="确定要删除这个物种类别吗？"
-        confirm-button-text="删除"
-        cancel-button-text="取消"
-        @confirm="emit('delete', category.id)"
-      >
-        <template #reference>
-          <ElButton type="danger" @click.stop>
-            删除
-          </ElButton>
-        </template>
-      </ElPopconfirm>
-    </div>
   </ElCard>
 </template>
 
@@ -188,7 +159,7 @@ const getBirdImageUrl = computed(() => {
 
 .category-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   margin-top: auto;
 }

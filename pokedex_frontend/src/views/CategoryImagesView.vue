@@ -20,7 +20,8 @@ import { useImageStore } from '../store/imageStore';
 import ImageThumbnail from '../components/ImageThumbnail.vue';
 import ImageUploadForm from '../components/ImageUploadForm.vue';
 import ImageMetaForm from '../components/ImageMetaForm.vue';
-import type { ImageRead, ImageUpdate } from '../types';
+import CategoryForm from '../components/CategoryForm.vue';
+import type { ImageRead, ImageUpdate, CategoryCreate } from '../types';
 
 const route = useRoute();
 const router = useRouter();
@@ -29,6 +30,7 @@ const imageStore = useImageStore();
 const uploadDialogVisible = ref(false);
 const detailDialogVisible = ref(false);
 const metaDialogVisible = ref(false);
+const editCategoryDialogVisible = ref(false);
 const selectedImage = ref<ImageRead | null>(null);
 const searchQuery = ref('');
 
@@ -196,6 +198,39 @@ const handleMetaFormSubmit = async (updateData: ImageUpdate, imageId: string) =>
 const goBack = () => {
   router.push('/');
 };
+
+const openEditCategoryDialog = () => {
+  editCategoryDialogVisible.value = true;
+};
+
+const handleCategoryFormSubmit = async (formData: CategoryCreate) => {
+  try {
+    const currentId = categoryId.value;
+    if (currentId && categoryStore.currentCategoryDetail) {
+      await categoryStore.updateCategory(currentId, formData);
+      await categoryStore.fetchCategoryWithImages(currentId);
+      editCategoryDialogVisible.value = false;
+    }
+  } catch (error) {
+    console.error('编辑物种信息失败:', error);
+  }
+};
+
+const closeEditCategoryDialog = () => {
+  editCategoryDialogVisible.value = false;
+};
+
+const deleteCategory = async () => {
+  try {
+    const currentId = categoryId.value;
+    if (currentId) {
+      await categoryStore.deleteCategory(currentId);
+      router.push('/');
+    }
+  } catch (error) {
+    console.error('删除物种失败:', error);
+  }
+};
 </script>
 
 <template>
@@ -206,22 +241,39 @@ const goBack = () => {
           <template v-if="categoryStore.currentCategoryDetail">
             <span class="page-title-text">{{ categoryStore.currentCategoryDetail.name }}</span>
             <span v-if="filteredImages.length" class="image-count">
-              {{ filteredImages.length }} {{ filteredImages.length === 1 ? 'image' : 'images' }}
+              {{ filteredImages.length }} {{ filteredImages.length === 1 ? '张图片' : '张图片' }}
             </span>
           </template>
-          <span v-else>Bird Species Images</span>
+          <span v-else>鸟类物种图片</span>
         </div>
       </template>
       
       <template #extra>
-        <ElButton type="primary" @click="openUploadDialog">
-          Upload Images
-        </ElButton>
+        <div class="header-actions">
+          <ElButton type="warning" @click="openEditCategoryDialog" class="mr-2">
+            编辑物种信息
+          </ElButton>
+          <ElPopconfirm
+            title="确定要删除此物种及其所有图片吗？此操作无法撤销！"
+            confirm-button-text="删除"
+            cancel-button-text="取消"
+            @confirm="deleteCategory"
+          >
+            <template #reference>
+              <ElButton type="danger" class="mr-2">
+                删除物种
+              </ElButton>
+            </template>
+          </ElPopconfirm>
+          <ElButton type="primary" @click="openUploadDialog">
+            上传图片
+          </ElButton>
+        </div>
       </template>
     </ElPageHeader>
     
     <div v-if="categoryStore.isLoadingCategoryDetail || imageStore.isUploading" class="loading-message">
-      Loading...
+      加载中...
     </div>
     
     <div v-if="categoryStore.error || imageStore.error" class="error-message">
@@ -236,7 +288,7 @@ const goBack = () => {
       <div class="search-filters">
         <ElInput
           v-model="searchQuery"
-          placeholder="Search by title..."
+          placeholder="搜索图片标题..."
           clearable
           class="search-input"
         >
@@ -248,9 +300,9 @@ const goBack = () => {
       
       <ElEmpty 
         v-if="filteredImages.length === 0" 
-        description="No images found in this category. Start by uploading an image!"
+        description="此类别中没有找到图片。开始上传第一张图片！"
       >
-        <ElButton type="primary" @click="openUploadDialog">Upload Image</ElButton>
+        <ElButton type="primary" @click="openUploadDialog">上传图片</ElButton>
       </ElEmpty>
       
       <template v-else>
@@ -267,8 +319,6 @@ const goBack = () => {
             <ImageThumbnail 
               :image="image" 
               @view-detail="viewImageDetail"
-              @edit-meta="editImageMeta"
-              @delete="deleteImage"
             />
           </ElCol>
         </ElRow>
@@ -285,10 +335,26 @@ const goBack = () => {
       </template>
     </template>
     
+    <!-- 物种编辑对话框 -->
+    <ElDialog
+      v-model="editCategoryDialogVisible"
+      title="编辑物种信息"
+      width="50%"
+      destroy-on-close
+    >
+      <CategoryForm
+        v-if="categoryStore.currentCategoryDetail"
+        :is-edit-mode="true"
+        :initial-data="categoryStore.currentCategoryDetail"
+        @submit="handleCategoryFormSubmit"
+        @cancel="closeEditCategoryDialog"
+      />
+    </ElDialog>
+    
     <!-- Image Upload Dialog -->
     <ElDialog
       v-model="uploadDialogVisible"
-      title="Upload Image"
+      title="上传图片"
       width="50%"
       destroy-on-close
     >
@@ -300,7 +366,7 @@ const goBack = () => {
       />
     </ElDialog>
     
-    <!-- Image Detail Dialog -->
+    <!-- 图片详情对话框 -->
     <ElDialog 
       v-if="selectedImage"
       v-model="detailDialogVisible"
@@ -320,39 +386,45 @@ const goBack = () => {
           </ElCol>
           <ElCol :span="12">
             <ElDescriptions :column="1" border>
-              <ElDescriptionsItem label="Title">{{ selectedImage.title }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="Description">{{ selectedImage.description || 'N/A' }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="Category">{{ categoryStore.currentCategoryDetail?.name }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="Format">{{ selectedImage.metadata.format }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="Dimensions">
+              <ElDescriptionsItem label="标题">{{ selectedImage.title }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="描述">{{ selectedImage.description || '无' }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="物种">{{ categoryStore.currentCategoryDetail?.name }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="格式">{{ selectedImage.metadata.format }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="尺寸">
                 {{ selectedImage.metadata.width }} x {{ selectedImage.metadata.height }}
               </ElDescriptionsItem>
-              <ElDescriptionsItem label="File Size">{{ selectedImage.metadata.fileSize }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="Uploaded">{{ new Date(selectedImage.createdDate).toLocaleString() }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="文件大小">{{ selectedImage.metadata.fileSize }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="上传时间">{{ new Date(selectedImage.createdDate).toLocaleString() }}</ElDescriptionsItem>
             </ElDescriptions>
           </ElCol>
         </ElRow>
       </div>
       <template #footer>
-        <ElButton @click="detailDialogVisible = false">Close</ElButton>
-        <ElButton type="primary" @click="editImageMeta(String(selectedImage!.id))">
-          Edit Metadata
-        </ElButton>
-        <ElPopconfirm
-          title="Are you sure you want to delete this image?"
-          @confirm="handleDeleteConfirm"
-        >
-          <template #reference>
-            <ElButton type="danger">Delete Image</ElButton>
-          </template>
-        </ElPopconfirm>
+        <div class="detail-footer-actions">
+          <ElButton @click="detailDialogVisible = false">关闭</ElButton>
+          <div>
+            <ElButton type="warning" @click="editImageMeta(String(selectedImage!.id))" class="mr-2">
+              编辑
+            </ElButton>
+            <ElPopconfirm
+              title="确定要删除这张图片吗？"
+              confirm-button-text="删除"
+              cancel-button-text="取消"
+              @confirm="handleDeleteConfirm"
+            >
+              <template #reference>
+                <ElButton type="danger">删除</ElButton>
+              </template>
+            </ElPopconfirm>
+          </div>
+        </div>
       </template>
     </ElDialog>
     
-    <!-- Image Metadata Edit Dialog -->
+    <!-- 图片元数据编辑对话框 -->
     <ElDialog
       v-model="metaDialogVisible"
-      title="Edit Image Metadata"
+      title="编辑图片元数据"
       width="50%"
       @closed="selectedImage = null" 
     >
@@ -505,5 +577,20 @@ const goBack = () => {
     max-width: 100%;
     margin-bottom: 12px;
   }
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+
+.detail-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
 }
 </style>

@@ -40,12 +40,16 @@ const apiService = {
   },
 
   putCategory: async (categoryId: string, data: CategoryUpdate): Promise<CategoryRead> => {
+    console.log('[apiService] putCategory called with categoryId:', categoryId);
     const response = await api.put(`/categories/${categoryId}/`, data);
+    console.log('[apiService] putCategory response:', response.status, response.data);
     return response.data;
   },
 
   deleteCategoryById: async (categoryId: string): Promise<void> => {
+    console.log('[apiService] deleteCategoryById called with categoryId:', categoryId);
     await api.delete(`/categories/${categoryId}/`);
+    console.log('[apiService] deleteCategoryById completed for categoryId:', categoryId);
   },
 
   // Image endpoints
