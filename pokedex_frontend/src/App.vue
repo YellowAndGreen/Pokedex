@@ -19,8 +19,8 @@ const handleSelect = (key: string) => {
   <ElContainer class="app-container">
     <ElHeader class="app-header">
       <div class="logo" @click="router.push('/')">
-        <img src="./assets/vue.svg" alt="Bird Gallery Logo" class="logo-image">
-        <span class="logo-text">Bird Species Gallery</span>
+        <img src="./assets/vue.svg" alt="鸟类图库 Logo" class="logo-image">
+        <span class="logo-text">鸟类物种图库</span>
       </div>
     </ElHeader>
     
@@ -34,18 +34,18 @@ const handleSelect = (key: string) => {
         >
           <ElMenuItem index="home">
             <i class="el-icon-house"></i>
-            <span>Home</span>
+            <span>首页</span>
           </ElMenuItem>
           
           <div class="menu-category-label">
-            <span>BIRD SPECIES</span>
+            <span>鸟类物种</span>
             <ElButton 
               type="primary" 
               size="small" 
               @click.stop="router.push('/')"
               class="add-category-btn"
             >
-              Add
+              添加
             </ElButton>
           </div>
           
@@ -68,7 +68,7 @@ const handleSelect = (key: string) => {
 </template>
 
 <style>
-/* Global styles */
+/* 全局样式 */
 * {
   margin: 0;
   padding: 0;
@@ -88,12 +88,12 @@ html, body {
   color: #2c3e50;
 }
 
-/* App container */
+/* 应用容器 */
 .app-container {
   height: 100vh;
 }
 
-/* Header styles */
+/* 头部样式 */
 .app-header {
   background-color: #4CAF50;
   color: white;
@@ -120,12 +120,12 @@ html, body {
   font-weight: 600;
 }
 
-/* Main container */
+/* 主容器 */
 .main-container {
   height: calc(100vh - 60px);
 }
 
-/* Sidebar styles */
+/* 侧边栏样式 */
 .app-sidebar {
   background-color: #f5f7fa;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
@@ -164,25 +164,42 @@ html, body {
   display: inline-block;
 }
 
-/* Main content area */
+/* 主内容区域 */
 .app-main {
   padding: 0;
   overflow-y: auto;
   background-color: #f5f7fa;
 }
 
-/* Responsive adjustments */
+/* 响应式适配 */
 @media (max-width: 768px) {
   .app-sidebar {
-    width: 100%;
+    width: 0 !important;
     position: fixed;
     z-index: 5;
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, width 0s 0.3s;
   }
   
   .app-sidebar.visible {
+    width: 250px !important;
     transform: translateX(0);
+    transition: transform 0.3s ease;
   }
+  
+  .app-main {
+    width: 100% !important;
+  }
+}
+
+/* Element Plus 栅格适配 */
+.el-row {
+  margin-left: -10px !important;
+  margin-right: -10px !important;
+}
+
+.el-col {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
 }
 </style>

@@ -14,6 +14,12 @@ export interface CategoryRead extends CategoryBase {
   updatedDate: string;
 }
 
+export interface CategoryUpdate {
+  name?: string;
+  description?: string;
+  thumbnailUrl?: string;
+}
+
 export interface ImageBase {
   title: string;
   description?: string;

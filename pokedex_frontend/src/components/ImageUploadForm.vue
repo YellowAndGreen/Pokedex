@@ -7,16 +7,17 @@ import {
   ElForm,
   ElFormItem,
   ElMessage,
+  ElCheckbox,
+  ElIcon
 } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import type { UploadProps, UploadUserFile, UploadFile } from 'element-plus';
 import type { FormInstance } from 'element-plus';
+import { useCategoryStore } from '../store/categoryStore';
 
 const props = defineProps<{
   categoryId: string;
 }>();
-
-// Destructure to acknowledge usage, even if only in template
-const { categoryId } = props;
 
 const emit = defineEmits<{
   (e: 'upload-success'): void;
@@ -24,11 +25,14 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
 }>();
 
+const categoryStore = useCategoryStore();
 const formRef = ref<FormInstance>();
 const fileList = ref<UploadUserFile[]>([]);
 const form = reactive({
   description: ''
 });
+const setAsThumbnail = ref(false);
+const isUploading = ref(false);
 
 const rules = {
   description: [
@@ -38,7 +42,7 @@ const rules = {
 
 const handleExceed: UploadProps['onExceed'] = (_files) => {
   ElMessage.warning(
-    'Only one image can be uploaded at a time'
+    'Only one image can be uploaded at a time. Please remove the existing image first if you want to change it.'
   );
 };
 
@@ -54,7 +58,11 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
     ElMessage.error('Image size can not exceed 5MB!');
   }
   
-  return isImage && isLt5M;
+  if (isImage && isLt5M) {
+    fileList.value = [file as UploadUserFile];
+    return false;
+  }
+  return false;
 };
 
 const submitForm = async () => {
@@ -62,32 +70,58 @@ const submitForm = async () => {
   
   await formRef.value.validate(async (valid) => {
     if (valid) {
-      if (fileList.value.length === 0) {
+      if (fileList.value.length === 0 || !fileList.value[0].raw) {
         ElMessage.error('Please select an image to upload');
         return;
       }
       
+      isUploading.value = true;
+      const formData = new FormData();
+      formData.append('file', fileList.value[0].raw);
+      formData.append('description', form.description);
+      formData.append('category_id', props.categoryId);
+
       try {
-        // Here we're simulating the upload - in a real app we'd call the store or API
-        // Actually uploading would be handled by the store/api
-        ElMessage.success('Image upload successful!');
+        await categoryStore.uploadImageAndUpdateCategoryThumbnailIfNeeded(
+          formData, 
+          props.categoryId, 
+          setAsThumbnail.value
+        );
+        ElMessage.success('Image uploaded successfully!');
         emit('upload-success');
-        // Reset form
         fileList.value = [];
         form.description = '';
+        setAsThumbnail.value = false;
+        formRef.value?.resetFields();
       } catch (error: any) {
+        console.error("Upload error in form:", error);
+        ElMessage.error(error.message || 'Image upload failed.');
         emit('upload-error', error);
+      } finally {
+        isUploading.value = false;
       }
     }
   });
 };
 
 const cancel = () => {
+  fileList.value = [];
+  form.description = '';
+  setAsThumbnail.value = false;
+  if (formRef.value) {
+    formRef.value.resetFields();
+  }
   emit('cancel');
 };
 
-const handleRemove = (file: UploadFile) => {
-  fileList.value = fileList.value.filter(f => f.uid !== file.uid);
+const handleFileChange: UploadProps['onChange'] = (uploadFile, uploadFiles) => {
+  if (uploadFiles.length > 0) {
+    fileList.value = [uploadFiles[uploadFiles.length - 1]];
+  }
+};
+
+const handleRemove = () => {
+  fileList.value = [];
 };
 </script>
 
@@ -98,6 +132,7 @@ const handleRemove = (file: UploadFile) => {
     :rules="rules"
     label-width="120px"
     class="upload-form"
+    @submit.prevent="submitForm"
   >
     <ElFormItem label="Image" required>
       <ElUpload
@@ -108,13 +143,19 @@ const handleRemove = (file: UploadFile) => {
         :file-list="fileList"
         :on-exceed="handleExceed"
         :before-upload="beforeUpload"
+        :on-change="handleFileChange"
         :on-remove="handleRemove"
         list-type="picture-card"
       >
-        <ElButton type="primary">Select Image</ElButton>
+        <template #default>
+          <el-icon><Plus /></el-icon>
+        </template>
+        <template #trigger>
+          <ElButton type="primary">Select Image</ElButton>
+        </template>
         <template #tip>
           <div class="el-upload__tip">
-            JPG/PNG files with a size less than 5MB
+            JPG/PNG/GIF files with a size less than 5MB. Only 1 image at a time.
           </div>
         </template>
       </ElUpload>
@@ -125,15 +166,17 @@ const handleRemove = (file: UploadFile) => {
         v-model="form.description"
         type="textarea"
         :rows="4"
-        placeholder="Enter image description"
+        placeholder="Enter image description (optional)"
       />
     </ElFormItem>
-    
-    <input type="hidden" :value="categoryId" name="category_id" />
+
+    <ElFormItem label="Set as Thumbnail">
+      <ElCheckbox v-model="setAsThumbnail" label="Set this image as category thumbnail" />
+    </ElFormItem>
     
     <ElFormItem>
-      <ElButton type="primary" @click="submitForm">Upload</ElButton>
-      <ElButton @click="cancel">Cancel</ElButton>
+      <ElButton type="primary" @click="submitForm" :loading="isUploading">Upload</ElButton>
+      <ElButton @click="cancel" :disabled="isUploading">Cancel</ElButton>
     </ElFormItem>
   </ElForm>
 </template>
@@ -146,5 +189,15 @@ const handleRemove = (file: UploadFile) => {
 
 .image-uploader {
   width: 100%;
+}
+
+:deep(.el-upload--picture-card) {
+  width: 100px;
+  height: 100px;
+  line-height: 110px;
+}
+:deep(.el-upload-list--picture-card .el-upload-list__item) {
+  width: 100px;
+  height: 100px;
 }
 </style>

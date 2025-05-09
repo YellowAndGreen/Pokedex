@@ -70,7 +70,12 @@ export const setupMocks = () => {
   const mock = new MockAdapter(apiInstance, { delayResponse: 500 });
 
   // Categories endpoints
-  mock.onGet(/\/api\/categories\/?$/).reply(200, [...mockCategories]);
+  mock.onGet(/^\/api\/categories\/?(\?.*)?$/).reply(config => {
+    // Log the actual URL called to help with debugging
+    console.log('[MockAdapter] GET /api/categories called with URL:', config.url);
+    // We ignore skip and limit for now in the mock, always return all categories
+    return [200, [...mockCategories]];
+  });
 
   mock.onGet(/\/api\/categories\/([a-f0-9-]+)\/?/).reply(config => {
     console.log('[MockAdapter] config received for /api/categories/:id/:', JSON.parse(JSON.stringify(config, null, 2)));
@@ -136,16 +141,60 @@ export const setupMocks = () => {
     return [201, newCategory];
   });
 
-  mock.onPut(/\/api\/categories\/([a-f0-9-]+)\/?/).reply(config => {
-    const categoryId = config.url?.split('/')[3] || '';
-    const data = JSON.parse(config.data) as CategoryCreate;
-    const index = mockCategories.findIndex(c => c.id === categoryId);
+  mock.onPut(/\/api\/categories\/([a-f0-9-]+)\/?$|\/categories\/([a-f0-9-]+)\/?$/).reply(config => {
+    let categoryId = '';
+    const urlToParse = config.url || '';
+
+    // Try matching /api/categories/some-id/
+    let match = urlToParse.match(/\/api\/categories\/([a-f0-9-]+)\/?$/);
+    if (match && match[1]) {
+      categoryId = match[1];
+      console.log(`[MockAdapter] PUT Extracted ID (api path) from URL ('${urlToParse}'): "${categoryId}"`);
+    } else {
+      // Try matching /categories/some-id/
+      match = urlToParse.match(/\/categories\/([a-f0-9-]+)\/?$/);
+      if (match && match[1]) {
+        categoryId = match[1];
+        console.log(`[MockAdapter] PUT Extracted ID (relative path) from URL ('${urlToParse}'): "${categoryId}"`);
+      }
+    }
+
+    if (!categoryId) {
+      console.error('[MockAdapter] PUT /api/categories/:id - Could not determine Category ID from URL:', urlToParse);
+      return [400, { detail: 'Category ID missing or invalid in URL' }];
+    }
+
+    const updateData = JSON.parse(config.data) as Partial<CategoryRead>; 
+
+    const categoryIndex = mockCategories.findIndex(c => c.id === categoryId);
+    if (categoryIndex === -1) {
+      console.warn('[MockAdapter] PUT /api/categories/:id - Category not found for ID:', categoryId);
+      return [404, { detail: 'Category not found' }];
+    }
+
+    // Merge existing data with updateData and update timestamp
+    const originalCategory = mockCategories[categoryIndex];
+    mockCategories[categoryIndex] = {
+      ...originalCategory,
+      ...updateData, // Apply partial updates (name, description, thumbnailUrl)
+      updatedDate: new Date().toISOString()
+    };
+
+    // Also update the category in mockCategoriesWithImages array
+    const detailCategoryIndex = mockCategoriesWithImages.findIndex(c => c.id === categoryId);
+    if (detailCategoryIndex !== -1) {
+      mockCategoriesWithImages[detailCategoryIndex] = {
+        ...mockCategoriesWithImages[detailCategoryIndex],
+        ...updateData, // Apply partial updates here as well
+        updatedDate: new Date().toISOString()
+      };
+    } else {
+      // This case should ideally not happen if mockCategories and mockCategoriesWithImages are in sync
+      console.warn("[MockAdapter] PUT /api/categories/:id - Category found in mockCategories but NOT in mockCategoriesWithImages. ID:", categoryId);
+    }
     
-    if (index === -1) return [404, { detail: 'Category not found' }];
-    
-    const updated = { ...mockCategories[index], ...data };
-    mockCategories[index] = updated;
-    return [200, updated];
+    console.log('[MockAdapter] PUT /api/categories/:id - Updated category:', mockCategories[categoryIndex]);
+    return [200, { ...mockCategories[categoryIndex] }];
   });
 
   mock.onDelete(/\/api\/categories\/([a-f0-9-]+)\/?/).reply(config => {

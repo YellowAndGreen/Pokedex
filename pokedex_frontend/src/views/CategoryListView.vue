@@ -83,13 +83,13 @@ const closeDialog = () => {
 <template>
   <div class="category-list-container">
     <div class="category-list-header">
-      <h1>Bird Species Gallery</h1>
-      <p>Browse and manage your bird species image collections</p>
+      <h1>鸟类物种图库</h1>
+      <p>浏览和管理您的鸟类物种图像收藏</p>
       
       <div class="header-actions">
         <ElInput
           v-model="searchQuery"
-          placeholder="Search categories..."
+          placeholder="搜索物种..."
           class="search-input"
           clearable
         >
@@ -99,7 +99,7 @@ const closeDialog = () => {
         </ElInput>
         
         <ElButton type="primary" @click="openCreateDialog">
-          Add New Bird Species
+          添加新物种
         </ElButton>
       </div>
     </div>
@@ -108,10 +108,19 @@ const closeDialog = () => {
       {{ categoryStore.error }}
     </div>
     
-    <!-- Skeleton loading state -->
+    <!-- 骨架屏加载状态 -->
     <div v-if="categoryStore.isLoadingCategories">
       <ElRow :gutter="20">
-        <ElCol v-for="i in 4" :key="i" :xs="24" :sm="12" :md="8" :lg="6" class="mb-4">
+        <ElCol 
+          v-for="i in 4" 
+          :key="i" 
+          :xs="24" 
+          :sm="12" 
+          :md="8" 
+          :lg="6" 
+          :xl="4"
+          class="category-grid-item-wrapper"
+        >
           <ElSkeleton animated>
             <template #template>
               <div class="category-skeleton">
@@ -135,16 +144,16 @@ const closeDialog = () => {
       </ElRow>
     </div>
     
-    <!-- Empty state when no categories -->
+    <!-- 空状态 -->
     <ElEmpty 
       v-else-if="filteredCategories.length === 0" 
-      description="No bird species found. Start by adding your first species category!"
+      description="未找到鸟类物种。开始添加您的第一个物种类别！"
     >
-      <ElButton type="primary" @click="openCreateDialog">Add Bird Species</ElButton>
+      <ElButton type="primary" @click="openCreateDialog">添加鸟类物种</ElButton>
     </ElEmpty>
     
-    <!-- Category grid -->
-    <ElRow v-else :gutter="20">
+    <!-- 类别卡片网格 -->
+    <ElRow :gutter="20" class="category-grid">
       <ElCol 
         v-for="category in filteredCategories" 
         :key="category.id"
@@ -152,7 +161,8 @@ const closeDialog = () => {
         :sm="12" 
         :md="8" 
         :lg="6" 
-        class="mb-4"
+        :xl="4"
+        class="category-grid-item-wrapper"
       >
         <CategoryCard 
           :category="category" 
@@ -163,10 +173,10 @@ const closeDialog = () => {
       </ElCol>
     </ElRow>
     
-    <!-- Category create/edit dialog -->
+    <!-- 类别创建/编辑对话框 -->
     <ElDialog
       v-model="dialogVisible"
-      :title="isEditMode ? 'Edit Bird Species' : 'Add New Bird Species'"
+      :title="isEditMode ? '编辑鸟类物种' : '添加新鸟类物种'"
       width="50%"
       destroy-on-close
     >
@@ -211,8 +221,21 @@ const closeDialog = () => {
   max-width: 300px;
 }
 
-.mb-4 {
-  margin-bottom: 16px;
+/* 卡片网格样式 */
+.category-grid {
+  margin-bottom: 24px;
+}
+
+.category-grid-item-wrapper {
+  margin-bottom: 20px;
+  display: flex;
+}
+
+.category-skeleton {
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  width: 100%;
 }
 
 .error-message {
@@ -221,12 +244,6 @@ const closeDialog = () => {
   padding: 10px;
   border-radius: 4px;
   margin-bottom: 20px;
-}
-
-.category-skeleton {
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  overflow: hidden;
 }
 
 @media (max-width: 768px) {

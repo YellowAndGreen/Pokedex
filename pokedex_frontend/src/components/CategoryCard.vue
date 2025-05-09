@@ -21,75 +21,78 @@ const emit = defineEmits<{
 
 // For demonstration, use placeholder images
 const getBirdImageUrl = computed(() => {
-  // Using Pexels for bird species images (in real app, we'd use actual category thumbnails)
-  const birdImages = [
-    'https://images.pexels.com/photos/349758/hummingbird-bird-birds-349758.jpeg',
-    'https://images.pexels.com/photos/37833/rainbow-lorikeet-parrots-australia-rainbow-37833.jpeg',
-    'https://images.pexels.com/photos/45851/bird-blue-cristata-cyanocitta-45851.jpeg',
-    'https://images.pexels.com/photos/1618606/pexels-photo-1618606.jpeg'
-  ];
-  // Use category ID to select a consistent placeholder
-  // Convert first char of string ID to a number for modulo
-  const charCode = props.category.id.charCodeAt(0) || 0;
-  return birdImages[charCode % birdImages.length];
+  // Prioritize actual thumbnail URL if available
+  if (props.category.thumbnailUrl) {
+    return props.category.thumbnailUrl;
+  }
+  // Return empty string to trigger error slot for placeholder
+  return ''; 
 });
 </script>
 
 <template>
-  <ElCard shadow="hover" class="category-card">
+  <ElCard shadow="hover" class="category-card" @click="emit('view', category.id)">
     <div class="image-container">
       <ElImage 
         :src="getBirdImageUrl" 
         fit="cover" 
         class="category-image"
-        @click="emit('view', category.id)"
-      />
+        :preview="false"
+      >
+        <template #error>
+          <div class="image-slot-error">
+            <span>暂无图片</span>
+          </div>
+        </template>
+      </ElImage>
     </div>
     
-    <h3 class="category-name" @click="emit('view', category.id)">
-      {{ category.name }}
-    </h3>
-    
-    <p class="category-description">
-      {{ category.description }}
-    </p>
-    
-    <div class="category-meta">
-      <span class="image-count" v-if="imageCount !== undefined">
-        {{ imageCount }} {{ imageCount === 1 ? 'image' : 'images' }}
-      </span>
-      <span class="creation-date" v-if="category.createdDate">
-        Added: {{ new Date(category.createdDate).toLocaleDateString() }}
-      </span>
-      <span class="creation-date" v-else>
-        Added: N/A
-      </span>
+    <div class="card-content">
+      <h3 class="category-name">
+        {{ category.name }}
+      </h3>
+      
+      <p class="category-description">
+        {{ category.description }}
+      </p>
+      
+      <div class="category-meta">
+        <span class="image-count" v-if="imageCount !== undefined">
+          {{ imageCount }} {{ imageCount === 1 ? '张图片' : '张图片' }}
+        </span>
+        <span class="creation-date" v-if="category.createdDate">
+          添加于: {{ new Date(category.createdDate).toLocaleDateString() }}
+        </span>
+        <span class="creation-date" v-else>
+          添加于: 未知
+        </span>
+      </div>
     </div>
     
-    <div class="category-actions">
+    <div class="category-actions" @click.stop>
       <ElButton 
         type="primary" 
-        @click="emit('view', category.id)"
+        @click.stop="emit('view', category.id)"
       >
-        View Images
+        查看图片
       </ElButton>
       
       <ElButton 
         type="warning" 
-        @click="emit('edit', category)"
+        @click.stop="emit('edit', category)"
       >
-        Edit
+        编辑
       </ElButton>
       
       <ElPopconfirm
-        title="Are you sure you want to delete this category?"
-        confirm-button-text="Delete"
-        cancel-button-text="Cancel"
+        title="确定要删除这个物种类别吗？"
+        confirm-button-text="删除"
+        cancel-button-text="取消"
         @confirm="emit('delete', category.id)"
       >
         <template #reference>
-          <ElButton type="danger">
-            Delete
+          <ElButton type="danger" @click.stop>
+            删除
           </ElButton>
         </template>
       </ElPopconfirm>
@@ -100,9 +103,11 @@ const getBirdImageUrl = computed(() => {
 <style scoped>
 .category-card {
   height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
 .category-card:hover {
@@ -115,6 +120,10 @@ const getBirdImageUrl = computed(() => {
   border-radius: 4px;
   height: 180px;
   margin-bottom: 16px;
+  background-color: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .category-image {
@@ -129,11 +138,27 @@ const getBirdImageUrl = computed(() => {
   transform: scale(1.05);
 }
 
+.image-slot-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background-color: #f5f7fa;
+  color: #c0c4cc;
+  font-size: 14px;
+}
+
+.card-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .category-name {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0 0 8px;
-  cursor: pointer;
   color: #303133;
 }
 
@@ -165,6 +190,19 @@ const getBirdImageUrl = computed(() => {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+  margin-top: auto;
+}
+
+/* 响应式断点调整 */
+@media (max-width: 1200px) and (min-width: 992px) {
+  .category-actions {
+    flex-wrap: wrap;
+  }
+  
+  .category-actions .el-button {
+    margin-bottom: 8px;
+    flex: 1 0 45%;
+  }
 }
 
 @media (max-width: 768px) {

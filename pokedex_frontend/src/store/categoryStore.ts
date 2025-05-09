@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { CategoryRead, CategoryCreate, CategoryReadWithImages } from '../types';
+import { CategoryRead, CategoryCreate, CategoryReadWithImages, CategoryUpdate, ImageRead } from '../types';
 import apiService from '../services/apiService';
 
 export const useCategoryStore = defineStore('category', () => {
@@ -54,7 +54,7 @@ export const useCategoryStore = defineStore('category', () => {
     }
   };
 
-  const updateCategory = async (categoryId: string, categoryData: CategoryCreate) => {
+  const updateCategory = async (categoryId: string, categoryData: CategoryUpdate) => {
     error.value = null;
     
     try {
@@ -63,14 +63,16 @@ export const useCategoryStore = defineStore('category', () => {
       // Update in categories list
       const index = categories.value.findIndex(c => c.id === categoryId);
       if (index !== -1) {
-        categories.value[index] = updatedCategory;
+        // Ensure all fields of CategoryRead are present after partial update
+        categories.value[index] = { ...categories.value[index], ...updatedCategory }; 
       }
       
       // Update currentCategoryDetail if needed
       if (currentCategoryDetail.value && currentCategoryDetail.value.id === categoryId) {
+        // Preserve images array, apply other updates from updatedCategory
         currentCategoryDetail.value = {
-          ...updatedCategory,
-          images: currentCategoryDetail.value.images
+          ...currentCategoryDetail.value, // Keep existing fields like images
+          ...updatedCategory // Apply changes from the PUT response
         };
       }
       
@@ -99,6 +101,31 @@ export const useCategoryStore = defineStore('category', () => {
     }
   };
 
+  const uploadImageAndUpdateCategoryThumbnailIfNeeded = async (
+    formData: FormData, 
+    categoryId: string, 
+    setAsThumbnail: boolean
+  ): Promise<ImageRead> => {
+    error.value = null;
+    try {
+      const newImage = await apiService.uploadImageFile(formData);
+      
+      // Add the new image to the current category detail if it's loaded
+      if (currentCategoryDetail.value && currentCategoryDetail.value.id === categoryId) {
+        currentCategoryDetail.value.images.push(newImage);
+      }
+
+      if (setAsThumbnail) {
+        await updateCategory(categoryId, { thumbnailUrl: newImage.imageUrl });
+      }
+      return newImage;
+    } catch (err: any) {
+      error.value = err.message || 'Failed to upload image or update thumbnail';
+      console.error('Error in uploadImageAndUpdateCategoryThumbnailIfNeeded:', err);
+      throw err;
+    }
+  };
+
   return {
     categories,
     currentCategoryDetail,
@@ -109,6 +136,7 @@ export const useCategoryStore = defineStore('category', () => {
     fetchCategoryWithImages,
     createCategory,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    uploadImageAndUpdateCategoryThumbnailIfNeeded
   };
 });

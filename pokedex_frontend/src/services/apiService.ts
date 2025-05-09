@@ -5,7 +5,8 @@ import type {
   CategoryCreate, 
   CategoryReadWithImages,
   ImageRead,
-  ImageUpdate
+  ImageUpdate,
+  CategoryUpdate
 } from '../types';
 
 // Create axios instance
@@ -38,7 +39,7 @@ const apiService = {
     return response.data;
   },
 
-  putCategory: async (categoryId: string, data: CategoryCreate): Promise<CategoryRead> => {
+  putCategory: async (categoryId: string, data: CategoryUpdate): Promise<CategoryRead> => {
     const response = await api.put(`/categories/${categoryId}/`, data);
     return response.data;
   },
