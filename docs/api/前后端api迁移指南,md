@@ -1,0 +1,540 @@
+前端API迁移核心步骤指南
+文档版本： 1.5 最后更新： 2025-05-09 目标读者： 前端与后端开发工程师
+
+1. 引言
+本文档提供将Pokedex前端应用从Mock API迁移到真实后端API的核心步骤。内容包括前端代码调整、后端CORS配置及其他关键后端准备工作。
+
+2. 先决条件
+后端服务运行中： 确保FastAPI后端服务可访问，并已完成CORS及其他必要配置（见第3节）。通过Postman或浏览器访问主要API端点（如 /api/v1/categories/）进行验证。
+
+熟悉后端API文档： 理解API端点、请求/响应格式及数据模型。
+
+3. 后端CORS配置与准备工作 (FastAPI)
+3.1. 修改 pokedex_backend/app/main.py (CORS配置)
+在FastAPI主应用文件 pokedex_backend/app/main.py 中添加 CORSMiddleware。
+
+# pokedex_backend/app/main.py
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.cors import CORSMiddleware # 导入 CORSMiddleware
+
+from app.core.config import settings
+from app.database import engine, SQLModel # 假设已正确配置
+from app.routers import categories_router, images_router, species_info_router
+
+def create_db_and_tables(): # 开发时使用，生产环境应由Alembic管理
+    SQLModel.metadata.create_all(engine)
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+)
+
+# --- 中间件配置 ---
+# CORS 配置必须放在路由挂载之前
+if settings.BACKEND_CORS_ORIGINS:
+    origins_to_allow = [str(origin).strip() for origin in settings.BACKEND_CORS_ORIGINS]
+    if not origins_to_allow or origins_to_allow == ['']:
+        origins_to_allow = [ # 开发时默认值
+            "http://localhost", "http://localhost:5173",
+            "http://localhost:3000", "http://localhost:8080",
+        ]
+        if settings.ENVIRONMENT != "production":
+             print(f"Warning: BACKEND_CORS_ORIGINS not set, defaulting to: {origins_to_allow}.")
+    if settings.ENVIRONMENT == "production" and origins_to_allow == ["*"]:
+        print("CRITICAL SECURITY WARNING: 'allow_origins' is ['*'] in production.")
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins_to_allow,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    print("Warning: BACKEND_CORS_ORIGINS not configured. CORS middleware not added.")
+
+# --- 静态文件挂载 ---
+app.mount(f"/{settings.IMAGES_DIR_NAME}", StaticFiles(directory=settings.IMAGES_DIR), name="uploaded_images")
+app.mount(f"/{settings.THUMBNAILS_DIR_NAME}", StaticFiles(directory=settings.THUMBNAILS_DIR), name="thumbnails")
+
+# --- API 路由包含 ---
+app.include_router(categories_router, prefix=settings.API_V1_STR)
+app.include_router(images_router, prefix=settings.API_V1_STR)
+app.include_router(species_info_router, prefix=settings.API_V1_STR)
+
+# --- 应用启动事件 ---
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
+    print(f"Application startup complete. Environment: {settings.ENVIRONMENT}")
+    if settings.BACKEND_CORS_ORIGINS:
+        print(f"Configured CORS origins: {origins_to_allow}")
+    # ... 其他启动日志 ...
+
+@app.get("/")
+async def root():
+    return {"message": f"Welcome to {settings.PROJECT_NAME}! Environment: {settings.ENVIRONMENT}"}
+
+3.2. CORSMiddleware 参数说明
+allow_origins (list[str]): 允许跨域请求的源列表。生产环境务必指定确切的前端域名，而非 ["*"]。 建议通过环境变量配置。
+
+allow_credentials (bool): 是否允许跨域请求携带cookies。
+
+allow_methods (list[str]): 允许的HTTP方法列表 (如 ["GET", "POST"] 或 ["*"])。
+
+allow_headers (list[str]): 允许的HTTP请求头列表 (如 ["Content-Type"] 或 ["*"])。
+
+3.3. 验证CORS配置
+重启后端服务。
+
+从前端应用发起API请求。
+
+使用浏览器开发者工具检查网络请求及控制台是否有CORS错误。
+
+3.4. 进一步的后端注意事项
+API 端点审查与优化： 确保API满足前端需求（完整性、请求/响应模型、批量操作、分页、排序、过滤）。
+
+增强的错误处理与验证： 返回恰当的HTTP状态码和清晰的错误响应体。强化Pydantic模型验证。
+
+数据库迁移 (Alembic)： 生产环境强烈建议使用Alembic管理数据库模式变更。
+
+性能考量： 检查数据库索引，确保I/O密集型操作使用async/await，注意N+1查询问题，考虑缓存机制。
+
+安全性增强： 注意输入清理，定期更新依赖，未来考虑认证授权，确保文件上传安全。
+
+日志记录与监控： 配置结构化日志，为未来监控做准备。
+
+环境变量与配置管理 (config.py)： 通过环境变量管理敏感信息和环境特定配置。
+
+静态文件服务 (生产环境)： 生产环境建议由Nginx等高性能Web服务器提供静态文件服务。
+
+4. 前端API切换与基础URL配置
+4.1. 创建/更新环境变量文件
+在 pokedex_frontend/ 目录下配置 .env.development 和 .env.production：
+
+.env.development:
+
+# 设置为 'true' 使用 mock API, 设置为 'false' 使用真实 API
+VITE_USE_MOCK_API=false
+VITE_API_SERVER_BASE_URL=http://localhost:8000
+VITE_API_PREFIX=/api/v1
+VITE_IMAGES_DIR_NAME=uploaded_images
+VITE_THUMBNAILS_DIR_NAME=thumbnails
+
+.env.production:
+
+VITE_USE_MOCK_API=false
+VITE_API_SERVER_BASE_URL=https://your-production-api-server.com # 替换为生产API地址
+VITE_API_PREFIX=/api/v1
+# ... 其他生产配置 ...
+
+环境变量需以 VITE_ 开头。
+
+4.2. 创建应用配置文件 (src/config.ts)
+// pokedex_frontend/src/config.ts
+const USE_MOCK_API: boolean = import.meta.env.VITE_USE_MOCK_API === 'true';
+const API_SERVER_BASE_URL: string = import.meta.env.VITE_API_SERVER_BASE_URL || 'http://localhost:8000';
+const API_PREFIX: string = import.meta.env.VITE_API_PREFIX || '/api/v1';
+const IMAGES_DIR_NAME: string = import.meta.env.VITE_IMAGES_DIR_NAME || 'uploaded_images';
+const THUMBNAILS_DIR_NAME: string = import.meta.env.VITE_THUMBNAILS_DIR_NAME || 'thumbnails';
+
+export const config = {
+  useMockApi: USE_MOCK_API,
+  apiBaseUrl: `${API_SERVER_BASE_URL}${API_PREFIX}`,
+  imageBaseUrl: `${API_SERVER_BASE_URL}/${IMAGES_DIR_NAME}`,
+  thumbnailBaseUrl: `${API_SERVER_BASE_URL}/${THUMBNAILS_DIR_NAME}`,
+  serverBaseUrl: API_SERVER_BASE_URL,
+  isDevelopment: import.meta.env.DEV,
+};
+
+if (config.isDevelopment) console.log('App Config:', config);
+
+4.3. 执行API模式切换 (切换方法)
+要在 Mock API 和真实 API 之间切换，请执行以下步骤：
+
+定位配置文件： 打开前端项目根目录下的 .env.development 文件。
+
+修改环境变量：
+
+要使用 Mock API：将 VITE_USE_MOCK_API 的值设置为 true。
+
+VITE_USE_MOCK_API=true
+
+要使用 真实 API：将 VITE_USE_MOCK_API 的值设置为 false。
+
+VITE_USE_MOCK_API=false
+
+重启开发服务器：
+
+重要： Vite 在启动时加载环境变量。为了使上述更改生效，您必须停止当前正在运行的 Vite 开发服务器 (通常通过在终端按 Ctrl+C)，然后重新启动它 (例如，运行 npm run dev 或 yarn dev)。
+
+完成以上步骤后，apiService.ts 中的逻辑将根据 config.useMockApi 的新值自动选择使用 Mock 数据源或调用真实后端 API。这就是通过修改配置实现的“一键切换”方法。
+
+5. 核心迁移：更新 apiService.ts
+5.1. 引入并配置Axios
+确保已安装 axios。
+
+// pokedex_frontend/src/services/apiService.ts
+import axios, { type AxiosInstance, type AxiosError } from 'axios';
+import { config } from '@/config';
+import * as mockData from './mockData';
+import type { /* ...你的类型 ... */ Category, Image, CategoryCreateData, ImageUploadData, ImageUpdateData, CategoryUpdateData } from '@/types';
+
+const apiClient: AxiosInstance = axios.create({
+  baseURL: config.apiBaseUrl,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 10000,
+});
+
+// --- 数据转换与路径补全辅助函数 ---
+function enrichImagePaths(image: any): Image { /* ... 实现如前文 ... */
+  const defaultImageUrl = mockData.mockImages.length > 0 ? mockData.mockImages[0].imageUrl : 'https://placehold.co/600x400?text=Image';
+  const defaultThumbnailUrl = mockData.mockImages.length > 0 ? mockData.mockImages[0].thumbnailUrl : 'https://placehold.co/300x200?text=Thumb';
+  return {
+    id: image.id,
+    title: image.title || image.original_filename,
+    original_filename: image.original_filename,
+    stored_filename: image.stored_filename,
+    relative_file_path: image.relative_file_path,
+    relative_thumbnail_path: image.relative_thumbnail_path,
+    mime_type: image.mime_type,
+    size_bytes: image.size_bytes,
+    description: image.description,
+    tags: image.tags,
+    categoryId: image.category_id,
+    created_at: image.created_at,
+    updated_at: image.updated_at,
+    imageUrl: image.relative_file_path ? `${config.imageBaseUrl}/${image.relative_file_path}` : defaultImageUrl,
+    thumbnailUrl: image.relative_thumbnail_path ? `${config.thumbnailBaseUrl}/${image.relative_thumbnail_path}` : defaultThumbnailUrl,
+  };
+}
+
+function enrichCategoryPaths(category: any): Category { /* ... 实现如前文 ... */
+  const defaultThumbnailUrl = mockData.mockCategories.length > 0 ? mockData.mockCategories[0].thumbnailUrl : 'https://placehold.co/300x200?text=Category';
+  const imagesWithFullPaths = category.images ? category.images.map(enrichImagePaths) : [];
+  return {
+    id: category.id,
+    name: category.name,
+    description: category.description,
+    thumbnail_path: category.thumbnail_path,
+    created_at: category.created_at,
+    updated_at: category.updated_at,
+    thumbnailUrl: category.thumbnail_path ? `${config.thumbnailBaseUrl}/${category.thumbnail_path}` : defaultThumbnailUrl,
+    images: imagesWithFullPaths,
+  };
+}
+
+// --- API 服务实现 ---
+export const apiService = {
+  async getCategories(): Promise<Category[]> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+      console.info('[Mock API] getCategories called');
+      return Promise.resolve(mockData.mockCategories.map(cat => enrichCategoryPaths(cat as any)));
+    }
+    console.info('[Real API] getCategories called');
+    try {
+      const response = await apiClient.get<any[]>('/categories/');
+      return response.data.map(enrichCategoryPaths);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw new Error(`Failed to fetch categories: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async getCategoryById(id: string): Promise<Category | null> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+      console.info(`[Mock API] getCategoryById called with id: ${id}`);
+      const category = mockData.mockCategories.find(cat => cat.id === id);
+      return Promise.resolve(category ? enrichCategoryPaths(category as any) : null);
+    }
+    console.info(`[Real API] getCategoryById called with id: ${id}`);
+    try {
+      const response = await apiClient.get<any>(`/categories/${id}/`);
+      return enrichCategoryPaths(response.data);
+    } catch (error) { /* ... 错误处理 ... */
+      console.error(`Error fetching category ${id}:`, error);
+      if ((error as AxiosError).response?.status === 404) return null;
+      throw new Error(`Failed to fetch category ${id}: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async createCategory(categoryData: CategoryCreateData): Promise<Category> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+        console.info('[Mock API] createCategory called with data:', categoryData);
+        const newCategory: Category = {
+            id: `mock-cat-${Date.now()}`, name: categoryData.name, description: categoryData.description || '',
+            thumbnail_path: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+            images: [], thumbnailUrl: 'https://placehold.co/300x200?text=New+Category',
+        };
+        mockData.mockCategories.push(newCategory as any);
+        return Promise.resolve(newCategory);
+    }
+    console.info('[Real API] createCategory called with data:', categoryData);
+    try {
+      const response = await apiClient.post<any>('/categories/', categoryData);
+      return enrichCategoryPaths(response.data);
+    } catch (error) { /* ... 错误处理 ... */
+        console.error('Error creating category:', error);
+        throw new Error(`Failed to create category: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async updateCategory(id: string, categoryData: CategoryUpdateData): Promise<Category> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+        console.info(`[Mock API] updateCategory called for id: ${id} with data:`, categoryData);
+        const index = mockData.mockCategories.findIndex(cat => cat.id === id);
+        if (index !== -1) {
+            mockData.mockCategories[index] = { ...mockData.mockCategories[index], ...categoryData, updated_at: new Date().toISOString() } as any;
+            return Promise.resolve(enrichCategoryPaths(mockData.mockCategories[index] as any));
+        }
+        return Promise.reject(new Error('Mock category not found for update'));
+    }
+    console.info(`[Real API] updateCategory called for id: ${id} with data:`, categoryData);
+    try {
+      const response = await apiClient.put<any>(`/categories/${id}/`, categoryData);
+      return enrichCategoryPaths(response.data);
+    } catch (error) { /* ... 错误处理 ... */
+        console.error(`Error updating category ${id}:`, error);
+        throw new Error(`Failed to update category ${id}: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async deleteCategory(id: string): Promise<void> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+        console.info(`[Mock API] deleteCategory called for id: ${id}`);
+        const index = mockData.mockCategories.findIndex(cat => cat.id === id);
+        if (index !== -1) {
+            mockData.mockCategories.splice(index, 1);
+            mockData.mockImages = mockData.mockImages.filter(img => img.categoryId !== id);
+            return Promise.resolve();
+        }
+        return Promise.reject(new Error('Mock category not found for delete'));
+    }
+    console.info(`[Real API] deleteCategory called for id: ${id}`);
+    try {
+      await apiClient.delete(`/categories/${id}/`);
+    } catch (error) { /* ... 错误处理 ... */
+        console.error(`Error deleting category ${id}:`, error);
+        throw new Error(`Failed to delete category ${id}: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async uploadImage(data: ImageUploadData): Promise<Image> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+        console.info('[Mock API] uploadImage called for category:', data.categoryId);
+        const newImage: Image = {
+            id: `mock-img-${Date.now()}`, title: data.title || data.file.name, original_filename: data.file.name,
+            stored_filename: `mock_stored_${Date.now()}_${data.file.name}`,
+            relative_file_path: `${data.categoryId}/mock_stored_${Date.now()}_${data.file.name}`,
+            relative_thumbnail_path: `${data.categoryId}/thumb_mock_stored_${Date.now()}_${data.file.name}`,
+            mime_type: data.file.type, size_bytes: data.file.size, description: data.description || '',
+            tags: data.tags || '', categoryId: data.categoryId, created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(), imageUrl: URL.createObjectURL(data.file),
+            thumbnailUrl: URL.createObjectURL(data.file),
+        };
+        mockData.mockImages.push(newImage as any);
+        const category = mockData.mockCategories.find(c => c.id === data.categoryId);
+        if (category) {
+            if (!category.images) category.images = [];
+            category.images.push(newImage as any);
+        }
+        return Promise.resolve(newImage);
+    }
+    console.info('[Real API] uploadImage called for category:', data.categoryId);
+    const formData = new FormData();
+    formData.append('file', data.file);
+    formData.append('category_id', data.categoryId);
+    if (data.description) formData.append('description', data.description);
+    if (data.tags) formData.append('tags', data.tags);
+    // if (data.title) formData.append('title', data.title); // 根据后端 ImageCreate 模型
+
+    try {
+      const response = await apiClient.post<any>('/images/upload/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return enrichImagePaths(response.data);
+    } catch (error) { /* ... 错误处理 ... */
+        console.error('Error uploading image:', error);
+        throw new Error(`Failed to upload image: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async updateImage(id: string, imageData: ImageUpdateData): Promise<Image> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+        console.info(`[Mock API] updateImage called for id: ${id} with data:`, imageData);
+        const index = mockData.mockImages.findIndex(img => img.id === id);
+        if (index !== -1) {
+            mockData.mockImages[index] = { ...mockData.mockImages[index], ...imageData, updated_at: new Date().toISOString() } as any;
+            return Promise.resolve(enrichImagePaths(mockData.mockImages[index] as any));
+        }
+        return Promise.reject(new Error('Mock image not found for update'));
+    }
+    console.info(`[Real API] updateImage called for id: ${id} with data:`, imageData);
+    try {
+      const response = await apiClient.put<any>(`/images/${id}/`, imageData);
+      return enrichImagePaths(response.data);
+    } catch (error) { /* ... 错误处理 ... */
+        console.error(`Error updating image ${id}:`, error);
+        throw new Error(`Failed to update image ${id}: ${(error as AxiosError).message}`);
+    }
+  },
+
+  async deleteImage(id: string): Promise<void> {
+    if (config.useMockApi) { /* ... mock实现 ... */
+        console.info(`[Mock API] deleteImage called for id: ${id}`);
+        const imageIndex = mockData.mockImages.findIndex(img => img.id === id);
+        if (imageIndex !== -1) {
+            const categoryId = mockData.mockImages[imageIndex].categoryId;
+            mockData.mockImages.splice(imageIndex, 1);
+            const category = mockData.mockCategories.find(cat => cat.id === categoryId);
+            if (category && category.images) {
+                const imgInCatIndex = category.images.findIndex(img => img.id === id);
+                if (imgInCatIndex !== -1) category.images.splice(imgInCatIndex, 1);
+            }
+            return Promise.resolve();
+        }
+        return Promise.reject(new Error('Mock image not found for delete'));
+    }
+    console.info(`[Real API] deleteImage called for id: ${id}`);
+    try {
+      await apiClient.delete(`/images/${id}/`);
+    } catch (error) { /* ... 错误处理 ... */
+        console.error(`Error deleting image ${id}:`, error);
+        throw new Error(`Failed to delete image ${id}: ${(error as AxiosError).message}`);
+    }
+  },
+  // ... 其他API函数 ...
+};
+
+关键点：
+
+每个API函数检查 config.useMockApi 来决定数据源。
+
+真实API调用使用 apiClient (Axios实例)。
+
+enrich...Paths 函数统一处理模拟和真实数据，确保返回给上层的数据结构一致。
+
+图片上传使用 FormData。
+
+错误处理使用 try...catch 并抛出封装后的错误。
+
+6. 更新 Pinia Stores (categoryStore.ts, imageStore.ts)
+调整Pinia store actions以调用新的 apiService 函数，并管理加载和错误状态。
+
+categoryStore.ts (部分示例):
+
+// pokedex_frontend/src/store/categoryStore.ts
+import { defineStore } from 'pinia';
+import { apiService } from '@/services/apiService';
+import type { Category, CategoryCreateData, CategoryUpdateData } from '@/types';
+
+interface CategoryState { /* ... state定义 ... */ categories: Category[]; currentCategory: Category | null; isLoading: boolean; error: string | null; }
+
+export const useCategoryStore = defineStore('category', {
+  state: (): CategoryState => ({ categories: [], currentCategory: null, isLoading: false, error: null }),
+  actions: {
+    async fetchCategories() {
+      this.isLoading = true; this.error = null;
+      try { this.categories = await apiService.getCategories(); }
+      catch (err: any) { this.error = err.message || 'Failed to fetch'; console.error(err); }
+      finally { this.isLoading = false; }
+    },
+    async fetchCategoryDetails(id: string) { /* ... 实现 ... */ },
+    async createCategory(categoryData: CategoryCreateData) {
+      this.isLoading = true; this.error = null;
+      try {
+        const newCategory = await apiService.createCategory(categoryData);
+        await this.fetchCategories(); // 重新获取列表
+        return newCategory;
+      } catch (err: any) { /* ... 错误处理 ... */ throw err; }
+      finally { this.isLoading = false; }
+    },
+    // ... updateCategory, deleteCategory actions ...
+  },
+});
+
+对 imageStore.ts 进行类似调整。
+
+7. 数据类型 (src/types/index.ts) 精确化与同步
+确保前端类型与后端API响应模型（Pydantic ...Read 模型）精确匹配。
+
+ID类型： string (UUID)。
+
+日期时间字段： 统一为后端字段名，如 created_at (ISO 8601 字符串)。
+
+图片/缩略图路径： enrich...Paths 函数生成 imageUrl 和 thumbnailUrl。
+
+DTOs (...CreateData, ...UpdateData)： 必须与后端 ...Create 和 ...Update 模型字段一致。
+
+8. 全面测试策略
+Mock API 模式回归测试： 设置 VITE_USE_MOCK_API=true，验证所有功能是否基于 mockData.ts 正常工作。
+
+真实 API 模式集成测试：
+
+设置 VITE_USE_MOCK_API=false。
+
+测试所有CRUD操作（类别、图片）。
+
+验证边界条件和错误处理（包括CORS）。
+
+使用浏览器开发者工具检查网络请求和控制台日志。
+
+9. 迁移核对清单
+[ ] 1. 后端服务运行正常，CORS及其他准备工作完成。
+
+[ ] 2. 前端环境变量 (.env.*) 及应用配置 (src/config.ts) 正确设置。
+
+[ ] 3. apiService.ts 已重构，支持Mock/真实API切换，Axios配置正确。
+
+[ ] 4. Pinia Stores (categoryStore.ts, imageStore.ts) 已更新，正确调用apiService并处理状态。
+
+[ ] 5. 前端类型 (src/types/index.ts) 与后端API模型同步。
+
+[ ] 6. 完成代码审查。
+
+[ ] 7. 完成Mock API回归测试和真实API集成测试。
+
+[ ] 8. 相关开发者文档已更新。
+
+10. 统一错误处理策略
+apiService.ts： 捕获Axios错误，抛出通用错误。
+
+Pinia Stores： 管理 error 状态字段。
+
+UI 组件： 订阅store的 error 状态，使用Element Plus的 ElNotification 或 ElMessage 显示用户友好的错误提示。
+
+11. 代码结构与最佳实践建议 (核心)
+关注点分离： Services (API交互) -> Stores (状态与业务逻辑) -> Components (UI)。
+
+类型安全： 充分利用TypeScript。
+
+配置集中管理： API URL等通过环境变量和config.ts管理。
+
+12. 常见问题与故障排除 (FAQ)
+Q1: CORS错误? 检查后端 main.py 中 CORSMiddleware 的 allow_origins 是否包含前端源，并重启后端。检查预检请求(OPTIONS)。
+
+Q2: 图片无法显示/URL错误? 检查 config.ts 中 imageBaseUrl/thumbnailBaseUrl，后端文件服务路径及 enrichImagePaths 逻辑。
+
+Q3: API 404 Not Found? 检查 apiClient 的 baseURL，请求路径，资源ID，后端路由注册。
+
+Q4: API 400/422错误? 检查请求体数据结构/类型是否与后端Pydantic模型匹配。查看后端日志获取详细验证错误。
+
+Q5: VITE_USE_MOCK_API 切换无效? 重启Vite开发服务器。检查 config.ts 读取逻辑。
+
+Q6: 后端行为不符预期? 检查后端日志、Pydantic模型、CRUD逻辑、Services及数据库状态。参考3.4节后端注意事项。
+
+13. 部署注意事项 (核心)
+生产环境变量： 正确设置指向生产后端的 VITE_API_SERVER_BASE_URL。
+
+后端CORS生产配置： allow_origins 设为确切的前端生产域名。
+
+后端配置分离： 敏感信息通过环境变量管理。
+
+数据库： 生产环境使用Alembic进行迁移。
+
+后端服务进程管理： 使用Gunicorn + Uvicorn workers及Supervisor/Systemd。
+
+14. 结论
+本指南概述了从Mock API迁移到真实API的核心步骤。通过正确配置前后端，并进行充分测试，可以显著提升应用的真实性和开发效率。

@@ -5,6 +5,7 @@
 
 from typing import List, Optional
 from sqlmodel import Session, select
+import uuid
 
 from app.models import (
     Image,
@@ -32,13 +33,13 @@ def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
     return db_image
 
 
-def get_image_by_id(*, session: Session, image_id: int) -> Optional[Image]:
+def get_image_by_id(*, session: Session, image_id: uuid.UUID) -> Optional[Image]:
     """
     根据ID从数据库中获取一个图片记录。
 
     参数:
         session (Session): 数据库会话对象。
-        image_id (int): 要获取的图片的ID。
+        image_id (uuid.UUID): 要获取的图片的ID。
 
     返回:
         Optional[Image]: 如果找到则返回图片对象，否则返回None。
@@ -48,14 +49,14 @@ def get_image_by_id(*, session: Session, image_id: int) -> Optional[Image]:
 
 
 def get_images_by_category_id(
-    *, session: Session, category_id: int, skip: int = 0, limit: int = 100
+    *, session: Session, category_id: uuid.UUID, skip: int = 0, limit: int = 100
 ) -> List[Image]:
     """
     根据类别ID从数据库中获取该类别下的所有图片记录 (支持分页)。
 
     参数:
         session (Session): 数据库会话对象。
-        category_id (int): 类别的ID。
+        category_id (uuid.UUID): 类别的ID。
         skip (int): 跳过的记录数。
         limit (int): 返回的最大记录数。
 
@@ -110,14 +111,14 @@ def update_image_metadata(
     return db_image
 
 
-def delete_image(*, session: Session, image_id: int) -> Optional[Image]:
+def delete_image(*, session: Session, image_id: uuid.UUID) -> Optional[Image]:
     """
     从数据库中删除一个图片记录。
     注意：此函数仅删除数据库记录，物理文件的删除应由文件服务处理。
 
     参数:
         session (Session): 数据库会话对象。
-        image_id (int): 要删除的图片的ID。
+        image_id (uuid.UUID): 要删除的图片的ID。
 
     返回:
         Optional[Image]: 如果删除成功则返回被删除的图片对象，否则返回None (如果未找到)。

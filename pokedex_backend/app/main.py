@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path  # 确保导入 Path
 
 from app.database import create_db_and_tables, engine  # 引入数据库初始化函数和引擎
-from app.routers import categories, images  # 引入API路由模块
+from app.routers import categories as categories_router # 使用别名以匹配指南中的变量名
+from app.routers import images as images_router # 使用别名以匹配指南中的变量名
 from app.routers import species_info_router
 from app.models import (
     species_info_models,
@@ -49,52 +50,79 @@ def create_application() -> FastAPI:
 
     # 配置CORS (跨源资源共享)
     if settings.backend_cors_origins:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=[str(origin) for origin in settings.backend_cors_origins],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+        # 将 settings.backend_cors_origins (List[AnyHttpUrl]) 转换为 List[str]
+        origins_to_allow_str = [str(origin).rstrip('/') for origin in settings.backend_cors_origins]
+        
+        # 指南中的逻辑包含了更详细的 origins 处理，我们在此应用它
+        # 注意：指南中使用 settings.BACKEND_CORS_ORIGINS (可能是字符串列表或逗号分隔的字符串)
+        # 现有代码使用 settings.backend_cors_origins (Pydantic的List[AnyHttpUrl])
+        # 我们将基于现有代码的类型，但借鉴指南中的逻辑（例如空列表或开发默认值）
+        
+        processed_origins = []
+        if not origins_to_allow_str or origins_to_allow_str == [''] or origins_to_allow_str == ['*']: # 稍微调整了指南的判断逻辑以适应 List[str]
+            if settings.environment != "production": # 指南中使用 settings.ENVIRONMENT
+                processed_origins = [ # 开发时默认值
+                    "http://localhost", "http://localhost:5173",
+                    "http://localhost:3000", "http://localhost:8080",
+                ]
+                print(f"Warning: backend_cors_origins not robustly set (or is '*'), defaulting to: {processed_origins} for non-production environment.")
+            elif origins_to_allow_str == ['*']:
+                 print("CRITICAL SECURITY WARNING: 'allow_origins' is ['*'] in production based on backend_cors_origins.")
+                 processed_origins = ["*"] # 明确允许 '*' 如果在生产中这样设置了
+            else: # 生产环境且未设置为 '*' 但可能为空或无效
+                print("Warning: backend_cors_origins is empty or not properly configured for production. CORS might not work as expected.")
+                processed_origins = [] # 明确设置为空列表，表示不允许任何源
+        else:
+            processed_origins = origins_to_allow_str
 
-    # 根据README.md, 图片存储在 static/uploads/images 和 static/uploads/thumbnails
-    # 因此，我们应该将 static/uploads 目录挂载，以便能通过URL访问其下的内容。
-    # 例如: /static_uploads/images/aa/bb/uuid.jpg
-    #       /static_uploads/thumbnails/aa/bb/uuid_thumb.jpg
-    # 这里的 `settings.static_files_directory` 应指向 `static/uploads` 所在的物理路径。
-    # 如果 settings.image_storage_root 是 "app/static/uploads/images",
-    # 那么 settings.static_files_directory 应该是 "app/static/uploads" (或其父目录，取决于挂载点)
-    # 假设 settings.static_files_directory = Path("app/static/uploads")
-    # 并且 settings.static_files_mount_path = "/static/uploads" (与README一致)
+        if processed_origins: # 仅当有有效源时才添加中间件
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=processed_origins,
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        elif settings.environment == "production":
+             print("CRITICAL: No CORS origins configured for production. Cross-origin requests will likely fail.")
+    else:
+        print("Warning: backend_cors_origins not configured in settings. CORS middleware not added.")
 
-    # 更直接的方式是使用 image_storage_root.parent 作为 StaticFiles 的目录
-    # 这样，如果 image_storage_root = "static/uploads/images", parent是 "static/uploads"
-    # URL 仍将从挂载点开始，例如 /static_mounted/images/... 或 /static_mounted/thumbnails/...
-    # 根据README 4.4，API响应中的URL会基于 /static/uploads/images/... 构建
-    # 所以，我们需要挂载 "static/uploads" 目录到 "/static/uploads" URL路径
+    # --- 静态文件挂载 (依照指南) ---
+    # 移除旧的静态文件挂载逻辑:
+    # static_serve_directory = settings.image_storage_root.parent
+    # static_mount_url = "/static/uploads"
+    # app.mount(
+    #     static_mount_url,
+    #     StaticFiles(directory=static_serve_directory),
+    #     name="uploaded_content",
+    # )
+    # print(f"Mounted static content from {static_serve_directory} at {static_mount_url}")
 
-    # 假设项目根目录下有 static/uploads 结构
-    # 如果 settings.image_storage_root = Path("static/uploads/images")
-    # 则其父目录 settings.image_storage_root.parent 是 Path("static/uploads")
-    # 这是我们想要作为静态服务根的目录
-    static_serve_directory = settings.image_storage_root.parent
-    static_mount_url = "/static/uploads"  # 与README中的URL结构一致
+    # 使用指南推荐的挂载方式
+    # 确保 settings 中的路径是 Path 对象，如果它们是从字符串解析的
+    # (在我们的 config.py 中，IMAGES_DIR 和 THUMBNAILS_DIR 已经是 Path 对象)
+    if hasattr(settings, 'IMAGES_DIR_NAME') and hasattr(settings, 'IMAGES_DIR') and settings.IMAGES_DIR.exists():
+        app.mount(f"/{settings.IMAGES_DIR_NAME.strip('/')}", StaticFiles(directory=settings.IMAGES_DIR), name="uploaded_images")
+        print(f"Mounted images from {settings.IMAGES_DIR} at /{settings.IMAGES_DIR_NAME.strip('/')}")
+    else:
+        print(f"Warning: settings.IMAGES_DIR_NAME or settings.IMAGES_DIR not configured or directory does not exist. Skipping image static mount. Path: {getattr(settings, 'IMAGES_DIR', 'N/A')}")
 
-    app.mount(
-        static_mount_url,
-        StaticFiles(directory=static_serve_directory),
-        name="uploaded_content",
-    )
+    if hasattr(settings, 'THUMBNAILS_DIR_NAME') and hasattr(settings, 'THUMBNAILS_DIR') and settings.THUMBNAILS_DIR.exists():
+        app.mount(f"/{settings.THUMBNAILS_DIR_NAME.strip('/')}", StaticFiles(directory=settings.THUMBNAILS_DIR), name="thumbnails")
+        print(f"Mounted thumbnails from {settings.THUMBNAILS_DIR} at /{settings.THUMBNAILS_DIR_NAME.strip('/')}")
+    else:
+        print(f"Warning: settings.THUMBNAILS_DIR_NAME or settings.THUMBNAILS_DIR not configured or directory does not exist. Skipping thumbnails static mount. Path: {getattr(settings, 'THUMBNAILS_DIR', 'N/A')}")
 
     # 包含API路由
     # 所有来自 categories 和 images 路由器的路径都将以 settings.api_v1_prefix 为前缀
-    app.include_router(categories.router, prefix=settings.api_v1_prefix)
-    app.include_router(images.router, prefix=settings.api_v1_prefix)
+    app.include_router(categories_router.router, prefix=settings.api_v1_prefix, tags=["Categories"])
+    app.include_router(images_router.router, prefix=settings.api_v1_prefix, tags=["Images"])
     # 新增：包含物种信息API路由
     # 使用 settings.api_v1_prefix 作为基础，并添加一个特定的路径段 /species
     # The tag "Species Information" is already defined in species_info_router.py
     app.include_router(
-        species_info_router.router, prefix=f"{settings.api_v1_prefix}/species"
+        species_info_router.router, prefix=settings.api_v1_prefix, tags=["Species Information"]
     )
 
     return app
@@ -112,3 +140,34 @@ app = create_application()
 #     yield
 #     print("应用关闭中...")
 # app = FastAPI(lifespan=lifespan, ...)
+
+@app.on_event("startup")
+def on_startup_revised():
+    create_db_and_tables()
+    print(f"Application startup complete. Environment: {settings.environment}")
+    if settings.backend_cors_origins:
+        temp_origins_for_log = []
+        if isinstance(settings.backend_cors_origins, list):
+             temp_origins_for_log = [str(origin).rstrip('/') for origin in settings.backend_cors_origins]
+        elif isinstance(settings.backend_cors_origins, str):
+             temp_origins_for_log = [s.strip() for s in settings.backend_cors_origins.split(',')]
+
+        if not temp_origins_for_log or temp_origins_for_log == [''] or temp_origins_for_log == ['*']:
+            if settings.environment != "production":
+                default_dev_origins = ["http://localhost", "http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
+                print(f"Configured CORS origins (defaulted for dev): {default_dev_origins}")
+            elif temp_origins_for_log == ['*']:
+                 print(f"Configured CORS origins: ['*']")
+            else:
+                print(f"Warning: backend_cors_origins is empty or not properly configured. Logged origins: {temp_origins_for_log}")
+        else:
+            print(f"Configured CORS origins: {temp_origins_for_log}")
+    else:
+        print("CORS not configured (BACKEND_CORS_ORIGINS not set).")
+
+app.router.on_startup = []
+app.add_event_handler("startup", on_startup_revised)
+
+@app.get("/")
+async def root():
+    return {"message": f"Welcome to {settings.project_name}! Environment: {settings.environment}"}

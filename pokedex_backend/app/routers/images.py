@@ -7,6 +7,7 @@ from typing import List, Optional
 from pathlib import Path
 import asyncio
 import aiofiles.os as aio_os
+import uuid
 
 from fastapi import (
     APIRouter,
@@ -50,7 +51,8 @@ async def upload_image(
     *,
     session: Session = Depends(get_session),
     file: UploadFile = File(..., description="要上传的图片文件"),
-    category_id: int = Form(..., description="图片所属的类别ID"),
+    category_id: uuid.UUID = Form(..., description="图片所属的类别ID"),
+    title: Optional[str] = Form(None, description="图片的可选标题"),
     description: Optional[str] = Form(None, description="图片的可选描述"),
     tags: Optional[str] = Form(None, description="图片的标签，逗号分隔"),
 ) -> ImageRead:
@@ -59,6 +61,7 @@ async def upload_image(
 
     - **file**: 图片文件本身。
     - **category_id**: 图片将归属的类别ID，必须有效。
+    - **title**: 图片的可选标题。
     - **description**: 对图片的可选文字描述。
     - **tags**: 以逗号分隔的字符串，用于标记图片。
     """
@@ -126,6 +129,7 @@ async def upload_image(
 
     # 5. 创建数据库记录
     image_create_data = ImageCreate(
+        title=title,
         original_filename=file.filename,  # type: ignore
         stored_filename=stored_filename,
         relative_file_path=str(
@@ -150,7 +154,7 @@ async def upload_image(
 
 
 @router.get("/{image_id}/", response_model=ImageRead, summary="获取图片元数据")
-def read_image(*, session: Session = Depends(get_session), image_id: int) -> ImageRead:
+def read_image(*, session: Session = Depends(get_session), image_id: uuid.UUID) -> ImageRead:
     """
     根据ID获取指定图片的元数据。
     """
@@ -162,7 +166,7 @@ def read_image(*, session: Session = Depends(get_session), image_id: int) -> Ima
 
 @router.put("/{image_id}/", response_model=ImageRead, summary="更新图片元数据")
 def update_image_metadata(
-    *, session: Session = Depends(get_session), image_id: int, image_in: ImageUpdate
+    *, session: Session = Depends(get_session), image_id: uuid.UUID, image_in: ImageUpdate
 ) -> ImageRead:
     """
     更新指定图片的元数据，如描述、标签或所属类别。
@@ -190,7 +194,7 @@ def update_image_metadata(
 @router.delete(
     "/{image_id}/", status_code=status.HTTP_204_NO_CONTENT, summary="删除图片"
 )
-async def delete_image(*, session: Session = Depends(get_session), image_id: int):
+async def delete_image(*, session: Session = Depends(get_session), image_id: uuid.UUID):
     """
     删除指定的图片，包括其元数据和存储的物理文件（原图和缩略图）。
     """

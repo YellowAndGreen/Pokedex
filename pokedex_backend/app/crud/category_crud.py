@@ -6,6 +6,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload  # 用于预加载关联的图片数据，避免N+1查询问题
+import uuid # 确保导入uuid
 
 from app.models import Category, CategoryCreate, CategoryReadWithImages, Image
 
@@ -28,13 +29,13 @@ def create_category(*, session: Session, category_create: CategoryCreate) -> Cat
     return db_category
 
 
-def get_category_by_id(*, session: Session, category_id: int) -> Optional[Category]:
+def get_category_by_id(*, session: Session, category_id: uuid.UUID) -> Optional[Category]:
     """
     根据ID从数据库中获取一个类别。
 
     参数:
         session (Session):数据库会话对象。
-        category_id (int):要获取的类别的ID。
+        category_id (uuid.UUID):要获取的类别的ID。
 
     返回:
         Optional[Category]:如果找到则返回类别对象，否则返回None。
@@ -79,14 +80,14 @@ def get_all_categories(
 
 
 def get_category_with_images_by_id(
-    *, session: Session, category_id: int
+    *, session: Session, category_id: uuid.UUID
 ) -> Optional[CategoryReadWithImages]:
     """
     根据ID获取类别及其关联的所有图片。
 
     参数:
         session (Session): 数据库会话对象。
-        category_id (int): 类别的ID。
+        category_id (uuid.UUID): 类别的ID。
 
     返回:
         Optional[CategoryReadWithImages]: 包含图片列表的类别对象，如果未找到则为None。
@@ -127,7 +128,7 @@ def update_category(
     return db_category
 
 
-def delete_category(*, session: Session, category_id: int) -> Optional[Category]:
+def delete_category(*, session: Session, category_id: uuid.UUID) -> Optional[Category]:
     """
     从数据库中删除一个类别。
     注意：此函数仅删除类别记录本身。
@@ -135,7 +136,7 @@ def delete_category(*, session: Session, category_id: int) -> Optional[Category]
 
     参数:
         session (Session):数据库会话对象。
-        category_id (int):要删除的类别的ID。
+        category_id (uuid.UUID):要删除的类别的ID。
 
     返回:
         Optional[Category]: 如果删除成功则返回被删除的类别对象，否则返回None (如果未找到)。

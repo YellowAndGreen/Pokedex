@@ -4,6 +4,7 @@
 """
 
 from typing import List, Optional
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlmodel import Session
@@ -66,7 +67,7 @@ def read_categories(
     summary="获取特定类别及其图片",
 )
 def read_category_with_images(
-    *, session: Session = Depends(get_session), category_id: int
+    *, session: Session = Depends(get_session), category_id: uuid.UUID
 ) -> CategoryReadWithImages:
     """
     根据ID获取一个特定类别及其包含的所有图片的元数据。
@@ -83,7 +84,7 @@ def read_category_with_images(
 def update_category(
     *,
     session: Session = Depends(get_session),
-    category_id: int,
+    category_id: uuid.UUID,
     category_in: CategoryCreate,  # 使用CategoryCreate作为更新模型，也可以定义专门的CategoryUpdate
 ) -> Category:
     """
@@ -117,7 +118,7 @@ def update_category(
 @router.delete(
     "/{category_id}/", status_code=status.HTTP_204_NO_CONTENT, summary="删除特定类别"
 )
-def delete_category(*, session: Session = Depends(get_session), category_id: int):
+def delete_category(*, session: Session = Depends(get_session), category_id: uuid.UUID):
     """
     删除指定ID的类别。
 
