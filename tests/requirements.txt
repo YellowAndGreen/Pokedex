@@ -1,0 +1,8 @@
+# 测试专用依赖
+pytest==7.4.0
+coverage==7.3.0
+requests==2.31.0
+pytest-mock==3.11.1
+pytest-asyncio==0.23.5
+python-multipart==0.0.6
+sqlmodel==0.0.16
