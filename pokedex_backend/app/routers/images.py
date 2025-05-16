@@ -191,6 +191,7 @@ def update_image_metadata(
     "/{image_id}/", status_code=status.HTTP_204_NO_CONTENT, summary="删除图片"
 )
 async def delete_image(*, session: Session = Depends(get_session), image_id: int):
+    """异步删除图片及其关联资源"""
     """
     删除指定的图片，包括其元数据和存储的物理文件（原图和缩略图）。
     """
@@ -223,5 +224,5 @@ async def delete_image(*, session: Session = Depends(get_session), image_id: int
         # print(f"尝试删除某个文件失败或文件不存在") # 日志记录
 
     # 2. 删除数据库记录
-    image_crud.delete_image(session=session, image_id=image_id)
+    await image_crud.delete_image(session=session, image_id=image_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

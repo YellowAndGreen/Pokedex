@@ -117,7 +117,7 @@ def update_category(
 @router.delete(
     "/{category_id}/", status_code=status.HTTP_204_NO_CONTENT, summary="删除特定类别"
 )
-def delete_category(*, session: Session = Depends(get_session), category_id: int):
+async def delete_category(*, session: Session = Depends(get_session), category_id: int):
     """
     删除指定ID的类别。
 
@@ -149,5 +149,5 @@ def delete_category(*, session: Session = Depends(get_session), category_id: int
             f"警告：正在删除类别 {db_category.name} (ID: {category_id})，该类别下尚有关联图片。关联图片的处理需后续完善。"
         )
 
-    category_crud.delete_category(session=session, category_id=category_id)
+    await category_crud.delete_category(session=session, category_id=category_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -131,7 +131,8 @@ def update_category(
     return db_category
 
 
-async def delete_category(*, session: Session, category_id: int) -> Optional[Category]:
+async def delete_category(*, session: Session, category_id: int) -> None:
+    """异步删除类别及其关联资源"""
     """
     从数据库中删除一个类别，并级联删除该类别下的所有图片记录及其物理文件。
     注意：此函数仅删除数据库记录，物理文件的删除应由文件服务处理。
