@@ -5,12 +5,16 @@
 
 from typing import List, Optional
 from sqlmodel import Session, select
+from fastapi.concurrency import run_in_threadpool
 
 from app.models import (
     Image,
     ImageCreate,
     ImageUpdate,
 )  # ImageCreate 通常在内部使用
+from app.services.file_storage_service import FileStorageService
+from app.core.config import settings
+from pathlib import Path
 
 
 def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
@@ -25,7 +29,7 @@ def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
     返回:
         Image: 创建成功后的图片对象。
     """
-    db_image = Image.from_orm(image_create_data)
+    db_image = Image.model_validate(image_create_data)
     session.add(db_image)
     session.commit()
     session.refresh(db_image)
@@ -110,10 +114,9 @@ def update_image_metadata(
     return db_image
 
 
-def delete_image(*, session: Session, image_id: int) -> Optional[Image]:
+async def delete_image(*, session: Session, image_id: int) -> Optional[Image]:
     """
-    从数据库中删除一个图片记录。
-    注意：此函数仅删除数据库记录，物理文件的删除应由文件服务处理。
+    从数据库中删除一个图片记录及其物理文件 (原图和缩略图)。
 
     参数:
         session (Session): 数据库会话对象。
@@ -122,15 +125,25 @@ def delete_image(*, session: Session, image_id: int) -> Optional[Image]:
     返回:
         Optional[Image]: 如果删除成功则返回被删除的图片对象，否则返回None (如果未找到)。
     """
-    db_image = session.get(Image, image_id)
+    db_image = await run_in_threadpool(session.get, Image, image_id)
     if not db_image:
         return None
 
-    # 物理文件（原图和缩略图）的删除逻辑应由专门的文件存储服务负责，
-    # 并在调用此函数之前或之后执行。
-    # 例如: file_storage_service.delete_file(db_image.relative_file_path)
-    #       file_storage_service.delete_thumbnail(db_image.relative_thumbnail_path)
+    file_service = FileStorageService()
 
-    session.delete(db_image)
-    session.commit()
+    # Delete physical files first
+    if db_image.relative_file_path:
+        original_image_full_path = (
+            file_service.image_storage_root / db_image.relative_file_path
+        )
+        await file_service.delete_file(original_image_full_path)
+
+    if db_image.relative_thumbnail_path:
+        thumbnail_full_path = (
+            file_service.thumbnail_storage_root / db_image.relative_thumbnail_path
+        )
+        await file_service.delete_file(thumbnail_full_path)
+
+    await run_in_threadpool(session.delete, db_image)
+    await run_in_threadpool(session.commit)
     return db_image
