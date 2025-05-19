@@ -93,6 +93,7 @@ class ImageUpdate(SQLModel):
     description: Optional[str] = Field(None, max_length=500)
     tags: Optional[str] = Field(None)
     category_id: Optional[uuid.UUID] = None
+    set_as_category_thumbnail: Optional[bool] = Field(None, description="是否将此图片设置为其所属类别的缩略图")
 
 
 # 有关前向引用的处理，请参考 models/__init__.py 中的说明
