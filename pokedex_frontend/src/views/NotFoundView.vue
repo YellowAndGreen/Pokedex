@@ -23,7 +23,7 @@ const goHome = () => router.push('/');
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  min-height: calc(100vh - 120px);
   background-color: #f5f7fa;
 }
 </style>

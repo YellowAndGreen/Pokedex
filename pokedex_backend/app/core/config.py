@@ -60,7 +60,7 @@ class Settings(BaseSettings):
 
     # CORS 配置 (环境变量: BACKEND_CORS_ORIGINS - 逗号分隔的字符串)
     # pydantic-settings 会自动将环境变量中逗号分隔的字符串转换为 List[str]
-    backend_cors_origins: List[str] = []
+    backend_cors_origins: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     # 静态文件服务 (main.py 中会用到这些来推断挂载点和目录)
     # static_files_mount_url: str = "/static/uploads" # 由main.py硬编码或推断

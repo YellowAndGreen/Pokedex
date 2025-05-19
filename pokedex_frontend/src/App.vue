@@ -16,55 +16,21 @@ const handleSelect = (key: string) => {
 </script>
 
 <template>
-  <ElContainer class="app-container">
-    <ElHeader class="app-header">
-      <div class="logo" @click="router.push('/')">
-        <img src="./assets/vue.svg" alt="鸟类图库 Logo" class="logo-image">
-        <span class="logo-text">鸟类物种图库</span>
-      </div>
-    </ElHeader>
-    
-    <ElContainer class="main-container">
-      <ElAside width="250px" class="app-sidebar">
-        <ElMenu
-          default-active="home"
-          class="sidebar-menu"
-          @select="handleSelect"
-          :router="false"
-        >
-          <ElMenuItem index="home">
-            <i class="el-icon-house"></i>
-            <span>首页</span>
-          </ElMenuItem>
-          
-          <div class="menu-category-label">
-            <span>鸟类物种</span>
-            <ElButton 
-              type="primary" 
-              size="small" 
-              @click.stop="router.push('/')"
-              class="add-category-btn"
-            >
-              添加
-            </ElButton>
-          </div>
-          
-          <ElMenuItem
-            v-for="category in categoryStore.categories"
-            :key="category.id"
-            :index="String(category.id)"
-            class="category-menu-item"
-          >
-            <span class="category-menu-name">{{ category.name }}</span>
-          </ElMenuItem>
-        </ElMenu>
-      </ElAside>
-      
-      <ElMain class="app-main">
-        <router-view></router-view>
-      </ElMain>
-    </ElContainer>
-  </ElContainer>
+  <el-config-provider namespace="ep">
+    <el-container class="app-container">
+      <el-header class="app-header">
+        <div class="logo-title">
+          <span>Pokedex 图鉴</span>
+        </div>
+      </el-header>
+      <el-main class="app-main">
+        <router-view />
+      </el-main>
+      <el-footer class="app-footer">
+        Pokedex App &copy; 2025
+      </el-footer>
+    </el-container>
+  </el-config-provider>
 </template>
 
 <style>
@@ -90,39 +56,43 @@ html, body {
 
 /* 应用容器 */
 .app-container {
-  height: 100vh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 头部样式 */
 .app-header {
-  background-color: #4CAF50;
+  background-color: #409EFF;
   color: white;
+  padding: 0 20px;
+  height: 60px;
   line-height: 60px;
-  padding: 0 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  position: relative;
-  z-index: 10;
-}
-
-.logo {
   display: flex;
   align-items: center;
-  cursor: pointer;
+  justify-content: space-between;
 }
 
-.logo-image {
-  height: 32px;
-  margin-right: 10px;
-}
-
-.logo-text {
-  font-size: 20px;
-  font-weight: 600;
+.logo-title {
+  font-size: 1.5rem;
+  font-weight: bold;
 }
 
 /* 主容器 */
-.main-container {
-  height: calc(100vh - 60px);
+.app-main {
+  flex-grow: 1;
+  padding: 20px;
+  background-color: #f4f6f9;
+}
+
+.app-footer {
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #909399;
+  background-color: #ffffff;
+  border-top: 1px solid #e4e7ed;
 }
 
 /* 侧边栏样式 */
@@ -162,13 +132,6 @@ html, body {
   text-overflow: ellipsis;
   max-width: 180px;
   display: inline-block;
-}
-
-/* 主内容区域 */
-.app-main {
-  padding: 0;
-  overflow-y: auto;
-  background-color: #f5f7fa;
 }
 
 /* 响应式适配 */

@@ -76,6 +76,8 @@
         />
       </el-tooltip>
     </div>
+
+    <CategoryForm :visible="isCategoryFormVisible" mode="create" @update:visible="isCategoryFormVisible = $event" @submit-success="handleCategoryFormSuccess"/>
   </div>
 </template>
 
@@ -84,6 +86,7 @@ import { ref, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCategoryStore } from '../store/categoryStore';
 import CategoryCard from '../components/CategoryCard.vue';
+import CategoryForm from '../components/CategoryForm.vue';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 
@@ -103,6 +106,10 @@ const clearError = () => {
 
 const openCreateCategoryDialog = () => {
   isCategoryFormVisible.value = true;
+};
+
+const handleCategoryFormSuccess = () => {
+  isCategoryFormVisible.value = false;
 };
 </script>
 

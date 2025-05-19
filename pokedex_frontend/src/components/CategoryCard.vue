@@ -43,20 +43,17 @@ import { useRouter } from 'vue-router';
 import type { CategoryRead } from '../types';
 import { Picture } from '@element-plus/icons-vue';
 
-const props = defineProps<{
-  category: CategoryRead;
-}>();
+interface Props { category: CategoryRead; }
+const props = defineProps<Props>();
 
 const router = useRouter();
 const BACKEND_STATIC_BASE_URL = 'http://localhost:8000';
 
 const displayThumbnailUrl = computed(() => {
   if (!props.category.thumbnailUrl) return '';
-  const url = props.category.thumbnailUrl;
-  
-  if (url.startsWith('http')) return url;
-  if (url.startsWith('/')) return `${BACKEND_STATIC_BASE_URL}${url}`;
-  return `${BACKEND_STATIC_BASE_URL}/static/uploads/${url}`;
+  if (props.category.thumbnailUrl.startsWith('http://') || props.category.thumbnailUrl.startsWith('https://')) return props.category.thumbnailUrl;
+  if (props.category.thumbnailUrl.startsWith('/')) return `${BACKEND_STATIC_BASE_URL}${props.category.thumbnailUrl}`;
+  return `${BACKEND_STATIC_BASE_URL}/static/uploads/${props.category.thumbnailUrl}`;
 });
 
 const navigateToDetail = () => {
@@ -70,7 +67,7 @@ const navigateToDetail = () => {
 <style scoped>
 .category-card {
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -85,12 +82,11 @@ const navigateToDetail = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
 }
 
 .category-name {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: bold;
   color: #303133;
 }
 
@@ -103,6 +99,7 @@ const navigateToDetail = () => {
 .category-thumbnail {
   width: 100%;
   height: 180px;
+  object-fit: cover;
   border-radius: 4px;
   background-color: #f5f7fa;
 }
@@ -112,9 +109,11 @@ const navigateToDetail = () => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  width: 100%;
   height: 180px;
   background-color: #f5f7fa;
   color: #c0c4cc;
+  font-size: 14px;
   border-radius: 4px;
 }
 
@@ -128,7 +127,9 @@ const navigateToDetail = () => {
   font-size: 0.9rem;
   color: #606266;
   line-height: 1.5;
+  flex-grow: 1;
   overflow: hidden;
+  text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;

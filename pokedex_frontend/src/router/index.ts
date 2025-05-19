@@ -1,34 +1,10 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
-import CategoryListView from '../views/CategoryListView.vue';
-import CategoryDetailView from '../views/CategoryDetailView.vue';
-import NotFoundView from '../views/NotFoundView.vue';
 
 const routes: Array<RouteRecordRaw> = [
-  { 
-    path: '/',
-    name: 'Home',
-    component: CategoryListView,
-    meta: { title: '首页 - 类别列表' }
-  },
-  {
-    path: '/categories',
-    name: 'CategoryList',
-    component: CategoryListView,
-    meta: { title: '类别列表' }
-  },
-  {
-    path: '/category/:id',
-    name: 'CategoryDetail',
-    component: CategoryDetailView,
-    props: true,
-    meta: { title: '类别详情' }
-  },
-  {
-    path: '/:pathMatch(.*)*',
-    name: 'NotFound',
-    component: NotFoundView,
-    meta: { title: '页面未找到' }
-  }
+  { path: '/', name: 'Home', component: () => import('../views/CategoryListView.vue'), meta: { title: '首页 - 类别列表' } },
+  { path: '/categories', name: 'CategoryList', component: () => import('../views/CategoryListView.vue'), meta: { title: '类别列表' } },
+  { path: '/category/:id', name: 'CategoryDetail', component: () => import('../views/CategoryDetailView.vue'), props: true, meta: { title: '类别详情' } },
+  { path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFoundView.vue'), meta: { title: '页面未找到' } }
 ];
 
 const router = createRouter({
@@ -36,8 +12,9 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach((to) => {
+router.beforeEach((to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - Pokedex` : 'Pokedex';
+  next();
 });
 
 export default router;
