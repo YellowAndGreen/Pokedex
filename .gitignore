@@ -107,3 +107,20 @@ venv.bak/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Frontend dependencies
+pokedex_frontend/node_modules/
+pokedex_frontend/dist/
+pokedex_frontend/.env
+pokedex_frontend/.env.local
+pokedex_frontend/.env.*.local
+
+# Logs
+pokedex_frontend/npm-debug.log*
+pokedex_frontend/yarn-debug.log*
+pokedex_frontend/yarn-error.log*
+pokedex_frontend/pnpm-debug.log*
+
+# Editor directories and files
+pokedex_frontend/.vscode/
+pokedex_frontend/.idea/
