@@ -52,7 +52,13 @@ class ImageCreate(SQLModel):
     description: Optional[str] = Field(None, max_length=500, description="图片描述")
     tags: Optional[str] = Field(None, description="逗号分隔的标签")
     category_id: uuid.UUID
-    # 文件相关的原始名称、mime类型、大小等应从 UploadFile 对象提取，不由客户端指定到此模型
+    # 文件相关的原始名称、mime类型、大小等现在是此模型的一部分，由后端填充。
+    original_filename: str = Field(description="用户上传时的原始文件名")
+    stored_filename: str = Field(description="服务器存储的UUID文件名")
+    relative_file_path: str = Field(description="相对于图片存储根目录的路径")
+    relative_thumbnail_path: Optional[str] = Field(None, description="相对于缩略图存储根目录的路径")
+    mime_type: str = Field(description="如 image/jpeg")
+    size_bytes: int = Field(description="文件大小")
 
 
 class ImageRead(ImageBase):

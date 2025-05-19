@@ -67,22 +67,30 @@ class ImageBase(SQLModel):
     # category_id: uuid.UUID # 将在具体表中定义，并带foreign_key
 ```
 
-### `ImageCreate (BaseModel)`
+### `ImageCreate (SQLModel)`
 用于创建新图片记录时，API接收的核心数据（文件通常作为独立参数）。
-这个模型主要用于后端服务层逻辑，API端点通常直接接收 `UploadFile` 和 `Form` 数据。
+这个模型主要用于后端服务层逻辑，API端点通常直接接收 `UploadFile` 和 `Form` 数据，
+然后服务层使用此模型（包含所有必要字段）来创建数据库记录。
 ```python
-from pydantic import BaseModel
+from sqlmodel import SQLModel, Field # 更改导入以反映 SQLModel
 from typing import Optional
 import uuid
 
-class ImageCreate(BaseModel):
-    title: Optional[str] = None # 后端可根据文件名生成，如果前端未提供
-    description: Optional[str] = None
-    tags: Optional[str] = None
-    category_id: uuid.UUID # 必须提供分类ID
-    # 文件相关的元数据 (original_filename, mime_type, size_bytes) 将由后端从 UploadFile 对象中提取
+class ImageCreate(SQLModel): # 更改基类为 SQLModel
+    title: Optional[str] = Field(None, description="图片标题，若不提供可由文件名生成")
+    description: Optional[str] = Field(None, description="图片描述")
+    tags: Optional[str] = Field(None, description="逗号分隔的标签")
+    category_id: uuid.UUID
+
+    # 文件相关的元数据现在是此模型的一部分，由后端填充。
+    original_filename: str = Field(description="用户上传时的原始文件名")
+    stored_filename: str = Field(description="服务器存储的UUID文件名")
+    relative_file_path: str = Field(description="相对于图片存储根目录的路径")
+    relative_thumbnail_path: Optional[str] = Field(None, description="相对于缩略图存储根目录的路径")
+    mime_type: str = Field(description="如 image/jpeg")
+    size_bytes: int = Field(description="文件大小")
 ```
-*注意：前端通过 `apiService.uploadImage` 发送 `FormData`，包含 `file: File`, `category_id: string`, 及可选的 `title, description, tags`。后端FastAPI端点应定义相应参数：`file: UploadFile = File(...)`, `category_id: uuid.UUID = Form(...)`, `title: Optional[str] = Form(None)` 等。上述 `ImageCreate` 模型可用于在后端服务层将这些分散的参数聚合起来传递给CRUD函数。*
+*注意：前端通过 `apiService.uploadImage` 发送 `FormData`，包含 `file: File`, `category_id: string`, 及可选的 `title, description, tags`。后端FastAPI端点接收这些数据后，服务层会构建包含上述所有字段的 `ImageCreate` 对象传递给CRUD函数。*
 
 ### `ImageUpdate (BaseModel)`
 用于更新图片元数据时，API接收的请求体模型。
@@ -163,17 +171,4 @@ class Image(SQLModel, table=True):
 | `id: string`                       | `id: uuid.UUID`                 | `id: uuid.UUID`              | 字符串 ↔ UUID 双向转换。                                                                 |
 | `title: string`                    | `title: Optional[str]`          | `title: Optional[str]`       |                                                                                          |
 | `description?: string`             | `description: Optional[str]`    | `description: Optional[str]` |                                                                                          |
-| `imageUrl: string`                 | `image_url: str`                | `relative_file_path: str`    | 后端根据`relative_file_path`和配置的基地址生成完整的`image_url`。                           |
-| `thumbnailUrl?: string`            | `thumbnail_url: Optional[str]`  | `relative_thumbnail_path: Optional[str]` | 后端根据`relative_thumbnail_path`生成完整的`thumbnail_url`，如果存在。                      |
-| `categoryId: string`               | `category_id: uuid.UUID`        | `category_id: uuid.UUID`     | 字符串 ↔ UUID 双向转换。                                                                 |
-| `createdDate: string`              | `created_at: datetime`          | `upload_date: datetime`      | ISO 8601 时间字符串 ↔ Python `datetime` 对象。数据库字段名可能为`upload_date`。            |
-| `tags?: string`                    | `tags: Optional[str]`           | `tags: Optional[str]`        | 逗号分隔的字符串或JSON字符串。                                                              |
-| `file_metadata: { ... }`           | `file_metadata: Optional[Dict]` | `file_metadata: Optional[Dict]` (原 metadata) | JSON对象 ↔ Python Dict。 数据库字段已改为 file_metadata                                  |
-
-**上传/创建 (`ImageUploadData` -> `ImageCreate`) 时：**
-*   前端发送 `imageFile: File`, `categoryId: string`, 及可选的 `title?, description?, tags?` (通常作为`FormData`)。
-*   后端API端点接收文件 (`UploadFile`) 和其他表单字段 (`Form(...)`)。后端服务层可将这些字段聚合为内部的`ImageCreate`对象（不含文件本身），文件单独处理。后端从文件名或`title`参数确定标题，提取文件元数据等，填充完整的数据库模型字段。
-
-**更新 (`ImageUpdate`) 时：**
-*   前端发送 `title?`, `description?`, `tags?`, `categoryId?`。
-*   后端 `ImageUpdate` Pydantic 模型应包含这些可选字段以供更新。
+| `imageUrl: string`

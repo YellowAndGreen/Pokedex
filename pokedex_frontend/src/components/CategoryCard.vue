@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import type { CategoryRead } from '../types';
 import { Picture } from '@element-plus/icons-vue';
@@ -46,14 +46,20 @@ import { Picture } from '@element-plus/icons-vue';
 interface Props { category: CategoryRead; }
 const props = defineProps<Props>();
 
+onMounted(() => {
+  console.log(`CategoryCard - Name: ${props.category.name}, ID: ${props.category.id}`);
+  console.log(`  Raw thumbnail_url from props:`, props.category.thumbnail_url);
+  console.log(`  Computed displayThumbnailUrl:`, displayThumbnailUrl.value);
+});
+
 const router = useRouter();
 const BACKEND_STATIC_BASE_URL = 'http://localhost:8000';
 
 const displayThumbnailUrl = computed(() => {
-  if (!props.category.thumbnailUrl) return '';
-  if (props.category.thumbnailUrl.startsWith('http://') || props.category.thumbnailUrl.startsWith('https://')) return props.category.thumbnailUrl;
-  if (props.category.thumbnailUrl.startsWith('/')) return `${BACKEND_STATIC_BASE_URL}${props.category.thumbnailUrl}`;
-  return `${BACKEND_STATIC_BASE_URL}/static/uploads/${props.category.thumbnailUrl}`;
+  if (!props.category.thumbnail_url) return '';
+  if (props.category.thumbnail_url.startsWith('http://') || props.category.thumbnail_url.startsWith('https://')) return props.category.thumbnail_url;
+  if (props.category.thumbnail_url.startsWith('/')) return `${BACKEND_STATIC_BASE_URL}${props.category.thumbnail_url}`;
+  return `${BACKEND_STATIC_BASE_URL}/static/uploads/${props.category.thumbnail_url}`;
 });
 
 const navigateToDetail = () => {

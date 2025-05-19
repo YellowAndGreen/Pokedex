@@ -23,8 +23,7 @@ def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
 
     参数:
         session (Session): 数据库会话对象。
-        image_create_data (ImageCreate): 包含图片元数据的模型。
-                                        实际的文件字节流由文件服务处理。
+        image_create_data (ImageCreate): 包含图片元数据及文件相关信息（如文件名、路径、MIME类型、大小等）的模型。
 
     返回:
         Image: 创建成功后的图片对象。

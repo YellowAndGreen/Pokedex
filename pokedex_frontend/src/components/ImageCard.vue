@@ -21,10 +21,10 @@ const props = defineProps<Props>();
 
 const BACKEND_STATIC_BASE_URL = 'http://localhost:8000'; // 应通过环境变量配置
 const displayImageUrl = computed(() => {
-  if (!props.image.imageUrl) return '';
-  if (props.image.imageUrl.startsWith('http://') || props.image.imageUrl.startsWith('https://')) return props.image.imageUrl;
-  if (props.image.imageUrl.startsWith('/')) return `${BACKEND_STATIC_BASE_URL}${props.image.imageUrl}`;
-  return `${BACKEND_STATIC_BASE_URL}/static/uploads/${props.image.imageUrl}`;
+  if (!props.image.image_url) return '';
+  if (props.image.image_url.startsWith('http://') || props.image.image_url.startsWith('https://')) return props.image.image_url;
+  if (props.image.image_url.startsWith('/')) return `${BACKEND_STATIC_BASE_URL}${props.image.image_url}`;
+  return `${BACKEND_STATIC_BASE_URL}/static/uploads/${props.image.image_url}`;
 });
 </script>
 
