@@ -10,7 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlmodel import Session
 
 from app.database import get_session
-from app.models import Category, CategoryCreate, CategoryRead, CategoryReadWithImages
+from app.models import (
+    Category,
+    CategoryCreate,
+    CategoryRead,
+    CategoryReadWithImages,
+    CategoryUpdate,
+)
 from app.crud import category_crud
 
 router = APIRouter(
@@ -85,10 +91,11 @@ def update_category(
     *,
     session: Session = Depends(get_session),
     category_id: uuid.UUID,
-    category_in: CategoryCreate,  # 使用CategoryCreate作为更新模型，也可以定义专门的CategoryUpdate
+    category_in: CategoryUpdate,
 ) -> Category:
     """
     更新指定ID的类别信息。
+    如果提供了名称，会检查新名称是否与现有其他类别冲突。
     """
     db_category = category_crud.get_category_by_id(
         session=session, category_id=category_id
@@ -96,8 +103,7 @@ def update_category(
     if not db_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="类别未找到")
 
-    # 检查新名称是否与现有其他类别冲突
-    if category_in.name != db_category.name:
+    if category_in.name is not None and category_in.name != db_category.name:
         existing_category_with_new_name = category_crud.get_category_by_name(
             session=session, name=category_in.name
         )
@@ -110,7 +116,7 @@ def update_category(
             )
 
     updated_category = category_crud.update_category(
-        session=session, db_category=db_category, category_in=category_in
+        session=session, db_category=db_category, category_update=category_in
     )
     return updated_category
 
@@ -118,20 +124,18 @@ def update_category(
 @router.delete(
     "/{category_id}/", status_code=status.HTTP_204_NO_CONTENT, summary="删除特定类别"
 )
-async def delete_category(*, session: Session = Depends(get_session), category_id: uuid.UUID):
+async def delete_category(
+    *, session: Session = Depends(get_session), category_id: uuid.UUID
+):
     """
     删除指定ID的类别。
 
-    **注意**: 当前版本的实现主要删除类别记录本身。
-    根据数据库外键约束设置，关联的图片可能：
-    1. 被级联删除 (如果设置了 ON DELETE CASCADE)。
-    2. 导致删除失败 (如果设置了 ON DELETE RESTRICT 或默认行为且存在关联图片)。
-    3. 外键被置空 (如果设置了 ON DELETE SET NULL)。
-
-    在`README.md`规划中，删除类别应同时删除关联图片。这部分逻辑的完善
-    建议在专门的服务层处理，或者在`category_crud.delete_category`中增加
-    对关联图片的处理逻辑（包括物理文件的删除）。
-    目前，如果存在关联图片且外键未设置级联删除，此操作可能会失败。
+    重要提示:
+    此操作会首先检查类别是否存在。如果类别下仍有关联图片，
+    将打印一条警告信息。实际的删除行为（是否级联删除图片等）
+    取决于数据库的外键约束设置以及 `category_crud.delete_category` 的具体实现。
+    根据项目规划 (README.md)，删除类别时应一并处理关联图片（包括物理文件）。
+    这部分级联删除逻辑建议在专门的服务层或`category_crud.delete_category`中完善。
     """
     db_category = category_crud.get_category_by_id(
         session=session, category_id=category_id
@@ -139,13 +143,7 @@ async def delete_category(*, session: Session = Depends(get_session), category_i
     if not db_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="类别未找到")
 
-    # 检查该类别下是否还有图片，根据实际需求决定是否允许删除非空类别
-    if db_category.images:  # images 是 Category 模型中定义的 relationship
-        # 根据项目需求，这里可以抛出异常，阻止删除非空类别，
-        # 或者调用服务层方法来处理图片的级联删除（包括文件）。
-        # 为符合README中"删除类别及关联图片"的描述，此处应有更复杂的处理
-        # 但当前CRUD层仅删除类别。这里暂时先允许删除，依赖数据库层面或后续服务层处理。
-        # 进一步处理逻辑待定 (例如：可以记录日志，或者根据配置决定是否抛出异常)
+    if db_category.images:
         print(
             f"警告：正在删除类别 {db_category.name} (ID: {category_id})，该类别下尚有关联图片。关联图片的处理需后续完善。"
         )
