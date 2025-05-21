@@ -18,7 +18,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Path Aliases */
+    "baseUrl": ".", // 将 "." 设置为基准目录 (相对于 tsconfig.app.json 文件)
+    "paths": {
+      "@/*": ["./src/*"] // 定义 @/* 指向 ./src/*
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
 }

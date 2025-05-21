@@ -1,92 +1,161 @@
+// src/store/imageStore.ts
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { ImageUpdate } from '../types';
-import apiService from '../services/apiService';
-import { useCategoryStore } from './categoryStore';
+import type { ImageRead, ImageCreateMetadata, ImageUpdate, HTTPValidationError } from '@/types';
+import {
+  getImages,
+  getImageById,
+  uploadImage,
+  updateImage,
+  deleteImage
+} from '@/services/apiService';
 
-export const useImageStore = defineStore('image', () => {
-  const isUploading = ref(false);
-  const isUpdating = ref(false);
-  const isDeleting = ref(false);
-  const error = ref<string | null>(null);
+interface ImageState {
+  images: ImageRead[];
+  currentImage: ImageRead | null;
+  isLoading: boolean;
+  error: string | null;
+  validationErrors: HTTPValidationError | null;
+  // 可以考虑添加分页信息
+  totalImages: number;
+  currentPage: number;
+  imagesPerPage: number;
+}
 
-  const uploadImage = async (formData: FormData) => {
-    isUploading.value = true;
-    error.value = null;
-    const categoryStore = useCategoryStore();
-    const categoryId = formData.get('category_id') as string;
-    
-    try {
-      const newImage = await apiService.uploadImageFile(formData);
-      
-      // Refresh the category images
-      if (categoryId) {
-        await categoryStore.fetchCategoryWithImages(categoryId);
+export const useImageStore = defineStore('image', {
+  state: (): ImageState => ({
+    images: [],
+    currentImage: null,
+    isLoading: false,
+    error: null,
+    validationErrors: null,
+    totalImages: 0,
+    currentPage: 1,
+    imagesPerPage: 50, // 默认值，可以从 API 或配置中获取
+  }),
+  actions: {
+    async fetchImages(
+        skip: number = 0,
+        limit: number = 50,
+        categoryId?: number,
+        speciesId?: number
+      ) {
+      this.isLoading = true;
+      this.error = null;
+      this.validationErrors = null;
+      try {
+        // 注意：OpenAPI 直接返回数组，没有分页元数据。
+        // 如果后端支持返回总数，这里可以更新 totalImages。
+        // 目前，我们只能获取当前页的图片。
+        const fetchedImages = await getImages(skip, limit, categoryId, speciesId);
+        this.images = fetchedImages;
+        // 假设 totalImages 和 currentPage 需要另外管理或通过其他方式获取
+        // this.totalImages = ... ;
+        // this.currentPage = (skip / limit) + 1;
+        // this.imagesPerPage = limit;
+
+      } catch (err: any) {
+        this.error = err.message || '获取图片列表失败';
+        if (err.data && err.status === 422) {
+          this.validationErrors = err.data;
+        }
+        console.error('Error fetching images:', err);
+      } finally {
+        this.isLoading = false;
       }
-      
-      return newImage;
-    } catch (err: any) {
-      error.value = err.message || 'Failed to upload image';
-      console.error('Error uploading image:', err);
-      throw err;
-    } finally {
-      isUploading.value = false;
-    }
-  };
+    },
 
-  const updateImageMetadata = async (imageId: string, imageData: ImageUpdate) => {
-    isUpdating.value = true;
-    error.value = null;
-    const categoryStore = useCategoryStore();
-    
-    try {
-      const updatedImage = await apiService.updateImage(imageId, imageData);
-      
-      // Refresh the category images if we have the current category loaded
-      if (categoryStore.currentCategoryDetail && updatedImage.categoryId) {
-        await categoryStore.fetchCategoryWithImages(updatedImage.categoryId);
+    async fetchImageDetails(id: number) {
+      this.isLoading = true;
+      this.error = null;
+      this.currentImage = null;
+      this.validationErrors = null;
+      try {
+        this.currentImage = await getImageById(id);
+      } catch (err: any) {
+        this.error = err.message || `获取图片 ${id} 详情失败`;
+        if (err.data && err.status === 422) {
+          this.validationErrors = err.data;
+        }
+        console.error(`Error fetching image ${id}:`, err);
+      } finally {
+        this.isLoading = false;
       }
-      
-      return updatedImage;
-    } catch (err: any) {
-      error.value = err.message || 'Failed to update image metadata';
-      console.error('Error updating image metadata:', err);
-      throw err;
-    } finally {
-      isUpdating.value = false;
-    }
-  };
+    },
 
-  const deleteImage = async (imageId: string, categoryId: string) => {
-    console.log('[store] imageStore.deleteImage called with imageId:', imageId, 'categoryId:', categoryId);
-    isDeleting.value = true;
-    error.value = null;
-    const categoryStore = useCategoryStore();
-    
-    try {
-      await apiService.deleteImageById(imageId);
-      console.log('[store] apiService.deleteImageById finished for imageId:', imageId);
-      
-      if (categoryId) {
-        console.log('[store] Refreshing category after delete for categoryId:', categoryId);
-        await categoryStore.fetchCategoryWithImages(categoryId);
+    async addNewImage(imageFile: File, metadata: ImageCreateMetadata) {
+      this.isLoading = true;
+      this.error = null;
+      this.validationErrors = null;
+      try {
+        const newImage = await uploadImage(imageFile, metadata);
+        this.images.unshift(newImage); // 添加到列表开头，或重新拉取
+        return newImage;
+      } catch (err: any) {
+        this.error = err.message || '上传图片失败';
+        if (err.data && err.status === 422) {
+          this.validationErrors = err.data;
+        }
+        console.error('Error uploading image:', err);
+        throw err;
+      } finally {
+        this.isLoading = false;
       }
-    } catch (err: any) {
-      error.value = err.message || 'Failed to delete image';
-      console.error('[store] Error deleting image in store for imageId:', imageId, err);
-      throw err;
-    } finally {
-      isDeleting.value = false;
-    }
-  };
+    },
 
-  return {
-    isUploading,
-    isUpdating,
-    isDeleting,
-    error,
-    uploadImage,
-    updateImageMetadata,
-    deleteImage
-  };
+    async editImage(id: number, imageData: ImageUpdate) {
+      this.isLoading = true;
+      this.error = null;
+      this.validationErrors = null;
+      try {
+        const updated = await updateImage(id, imageData);
+        const index = this.images.findIndex(img => img.id === id);
+        if (index !== -1) {
+          this.images[index] = updated;
+        }
+        if (this.currentImage?.id === id) {
+          this.currentImage = updated;
+        }
+        return updated;
+      } catch (err: any) {
+        this.error = err.message || `更新图片 ${id} 失败`;
+         if (err.data && err.status === 422) {
+          this.validationErrors = err.data;
+        }
+        console.error(`Error updating image ${id}:`, err);
+        throw err;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async removeImage(id: number) {
+      this.isLoading = true;
+      this.error = null;
+      this.validationErrors = null;
+      try {
+        await deleteImage(id);
+        this.images = this.images.filter(img => img.id !== id);
+        if (this.currentImage?.id === id) {
+          this.currentImage = null;
+        }
+      } catch (err: any) {
+        this.error = err.message || `删除图片 ${id} 失败`;
+        if (err.data && err.status === 422) {
+          this.validationErrors = err.data;
+        }
+        console.error(`Error deleting image ${id}:`, err);
+        throw err;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    // 清除验证错误
+    clearValidationErrors() {
+      this.validationErrors = null;
+    },
+    // 清除一般错误
+    clearError() {
+      this.error = null;
+    }
+  }
 });

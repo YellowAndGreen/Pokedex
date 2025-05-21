@@ -1,0 +1,19 @@
+{
+  "extends": "../pokedex_frontend/tsconfig.app.json",
+  "compilerOptions": {
+    "types": [
+      "vitest/globals",
+      "node"
+    ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../pokedex_frontend/node_modules"
+  ]
+} 
