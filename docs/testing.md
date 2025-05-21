@@ -139,6 +139,7 @@ def test_upload_invalid_file(client):
 ### 运行完整测试套件
 ```bash
 # 运行所有测试并生成覆盖率报告
+export PYTHONPATH=$PYTHONPATH:/home/xu/playground/illustrated-photo-library
 pytest tests/backend/ --cov=app --cov-report=html -v
 ```
 

@@ -15,6 +15,7 @@ from .category_models import (
     CategoryCreate,
     CategoryRead,
     CategoryReadWithImages,
+    CategoryUpdate,
 )
 from .image_models import Image, ImageBase, ImageCreate, ImageRead, ImageUpdate
 from .species_info_models import (
@@ -42,6 +43,7 @@ __all__ = [
     "CategoryCreate",
     "CategoryRead",
     "CategoryReadWithImages",
+    "CategoryUpdate",
     "Image",
     "ImageBase",
     "ImageCreate",

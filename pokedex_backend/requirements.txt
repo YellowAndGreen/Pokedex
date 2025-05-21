@@ -7,3 +7,8 @@ python-multipart>=0.0.5
 pydantic>=2.0.0
 pydantic-settings>=1.0.0
 pypinyin>=0.39.0
+PyYAML
+lark
+httpx
+pytest-cov
+requests

@@ -52,7 +52,7 @@ class Settings(BaseSettings):
 
     # 文件上传限制
     allowed_mime_types: List[str] = ["image/jpeg", "image/png", "image/gif"]
-    max_image_size: int = 10 * 1024 * 1024  # 10MB
+    max_image_size: int = 20 * 1024 * 1024  # 10MB
 
     # 缩略图参数
     thumbnail_size: Tuple[int, int] = (256, 256)
@@ -66,10 +66,14 @@ class Settings(BaseSettings):
     environment: str = "development"
 
     # 静态文件服务 (指南推荐方式)
-    IMAGES_DIR_NAME: str = "uploaded_images" # URL路径名，对应指南前端 VITE_IMAGES_DIR_NAME
-    IMAGES_DIR: Path = image_storage_root # 服务器上实际存储图片的文件夹路径
-    THUMBNAILS_DIR_NAME: str = "thumbnails" # URL路径名，对应指南前端 VITE_THUMBNAILS_DIR_NAME
-    THUMBNAILS_DIR: Path = thumbnail_storage_root # 服务器上实际存储缩略图的文件夹路径
+    IMAGES_DIR_NAME: str = (
+        "uploaded_images"  # URL路径名，对应指南前端 VITE_IMAGES_DIR_NAME
+    )
+    IMAGES_DIR: Path = image_storage_root  # 服务器上实际存储图片的文件夹路径
+    THUMBNAILS_DIR_NAME: str = (
+        "thumbnails"  # URL路径名，对应指南前端 VITE_THUMBNAILS_DIR_NAME
+    )
+    THUMBNAILS_DIR: Path = thumbnail_storage_root  # 服务器上实际存储缩略图的文件夹路径
 
     # 现有静态文件服务相关配置 (main.py 中会用到这些来推断挂载点和目录) - 这些可以保留，但下方挂载将优先使用上面的新配置
     # static_files_mount_url: str = "/static/uploads" # 由main.py硬编码或推断

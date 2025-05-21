@@ -4,6 +4,7 @@
 """
 
 from typing import List, Optional
+from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session, select
 import uuid
 
@@ -105,6 +106,11 @@ def update_image_metadata(
         Image: 更新成功后的图片对象。
     """
     update_data = image_in.dict(exclude_unset=True)
+
+    # 从 update_data 中移除不属于 Image 模型直接属性的字段
+    if "set_as_category_thumbnail" in update_data:
+        del update_data["set_as_category_thumbnail"]
+
     for key, value in update_data.items():
         setattr(db_image, key, value)
     session.add(db_image)
