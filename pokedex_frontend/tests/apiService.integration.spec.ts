@@ -15,14 +15,8 @@ import {
   deleteImage,
   getImageThumbnailUrl,
   getViewImageUrl,
-  // Species functions
-  // createSpecies, // Removed
-  // getAllSpecies, // Removed
-  // searchSpecies, // Removed
-  // getSpeciesById, // Removed
-  // updateSpecies, // Removed
-  // deleteSpecies, // Removed
   FULL_API_URL,
+  API_BASE_URL,
 } from '@/services/apiService'; // 假设 @ 指向 src
 import type {
   CategoryCreate,
@@ -31,10 +25,9 @@ import type {
   ImageCreateMetadata,
   ImageRead,
   ImageUpdate,
-  // SpeciesCreate, // Removed
-  // SpeciesRead, // Removed
-  // SpeciesUpdate, // Removed
 } from '@/types';
+import fs from 'fs';
+import path from 'path';
 
 // 注意：这些是集成测试，它们会向 http://localhost:8000/api 发送真实的 HTTP 请求。
 // 请确保您的后端服务正在运行，并且数据库处于可测试状态。
@@ -80,14 +73,7 @@ afterAll(async () => {
       if (e.status !== 404) console.error(`Error cleaning up category ${id}:`, e.message);
     }
   }
-  // for (const id of createdSpeciesIds.reverse()) { // 最后删除物种 // Removed
-  //   try { // Removed
-  //     await deleteSpecies(id); // Removed
-  //     console.log(`Cleaned up species with ID: ${id}`); // Removed
-  //   } catch (e: any) { // Removed
-  //     if (e.status !== 404) console.error(`Error cleaning up species ${id}:`, e.message); // Removed
-  //   } // Removed
-  // } // Removed
+
   createdCategoryIds = [];
   createdImageIds = [];
   // createdSpeciesIds = []; // Removed
@@ -189,32 +175,53 @@ describe('apiService (Integration with Live API)', () => {
     let testImage: ImageRead | null = null;
 
     beforeAll(async () => {
-      const cat = await createCategory({ name: `图片测试分类_${Date.now()}` });
+      // 为图片测试创建一个临时分类
+      const uniqueCategoryName = `图片测试分类_${Date.now()}`;
+      const cat = await createCategory({ name: uniqueCategoryName, description: '用于图片上传测试的临时分类' });
       tempCategoryIdForImage = cat.id;
-      createdCategoryIds.push(tempCategoryIdForImage);
+      createdCategoryIds.push(tempCategoryIdForImage); // 加入清理列表
     });
 
     it('should upload an image', async () => {
       expect(tempCategoryIdForImage).toBeDefined();
-      const imageFile = new File(['(⌐□_□)'], 'test_image.png', { type: 'image/png' });
+
+      const imageAssetPath = path.resolve(__dirname, 'assets/test_image.png');
+      
+      // 检查文件是否存在，以便调试
+      if (!fs.existsSync(imageAssetPath)) {
+        console.error(`Test image not found at: ${imageAssetPath}`);
+        throw new Error(`Test image not found at: ${imageAssetPath}. __dirname is ${__dirname}`);
+      }
+      const imageBuffer = fs.readFileSync(imageAssetPath);
+      const imageFile = new File([imageBuffer], 'test_image.png', { type: 'image/png' });
+
       const metadata: ImageCreateMetadata = {
-        title: '测试图片标题',
-        description: '这是一个通过集成测试上传的图片描述',
+        title: '真实图片测试标题',
+        description: '这是一个通过集成测试上传的真实图片描述',
         category_id: tempCategoryIdForImage,
-        tags: '测试,集成,图片',
+        tags: '真实,测试,集成,图片',
         set_as_category_thumbnail: false,
       };
+
       const uploadedImage = await uploadImage(imageFile, metadata);
+
       expect(uploadedImage).toHaveProperty('id');
       expect(uploadedImage.title).toBe(metadata.title);
       expect(uploadedImage.description).toBe(metadata.description);
       expect(uploadedImage.category_id).toBe(metadata.category_id);
       expect(uploadedImage.tags).toBe(metadata.tags);
-      expect(uploadedImage.image_url).toBe(`${FULL_API_URL}/images/${uploadedImage.id}/view`);
-      expect(uploadedImage.thumbnail_url).toBe(`${FULL_API_URL}/images/${uploadedImage.id}/thumbnail`);
-      expect(uploadedImage.created_at).toBeDefined();
+      
+      // 根据 openapi.json, image_url 和 thumbnail_url 是字符串
+      // 后端实际返回的是指向静态资源的绝对 URL
+      // 我们从 apiService 导入 API_BASE_URL 来构建预期的基础 URL
+      // expect(uploadedImage.image_url).toBe(`${API_BASE_URL}${uploadedImage.relative_file_path}`);
+      // expect(uploadedImage.thumbnail_url).toBe(`${API_BASE_URL}${uploadedImage.relative_thumbnail_path}`);
+      
+      expect(uploadedImage.original_filename).toBe('test_image.png');
+      expect(uploadedImage.mime_type).toBe('image/png');
+
+      testImage = uploadedImage; // 保存用于后续测试
       createdImageIds.push(uploadedImage.id);
-      testImage = uploadedImage;
     });
 
     it('should get an image by ID', async () => {
@@ -226,18 +233,22 @@ describe('apiService (Integration with Live API)', () => {
       expect(fetchedImage.description).toBe(testImage!.description);
       expect(fetchedImage.category_id).toBe(testImage!.category_id);
       expect(fetchedImage.tags).toBe(testImage!.tags);
-      expect(fetchedImage.image_url).toBe(`${FULL_API_URL}/images/${fetchedImage.id}/view`);
-      expect(fetchedImage.thumbnail_url).toBe(`${FULL_API_URL}/images/${fetchedImage.id}/thumbnail`);
-    });
 
-    // This test is skipped because GET /api/images/ is not defined in openapi.json
-    // and the current implementation of getImages service hits this non-existent endpoint.
-    // This test should be re-evaluated if a general image listing endpoint is added to the backend.
-    it.skip('should get all images (possibly filtered)', async () => {
-      const images = await getImages(0, 10, tempCategoryIdForImage);
-      expect(images).toBeInstanceOf(Array);
-      const found = images.some(img => img.id === testImage?.id);
-      expect(found, '获取的图片列表中应包含刚刚上传的图片').toBe(true);
+      // Validate image_url structure
+      expect(fetchedImage.image_url, 'fetchedImage.image_url should be a non-empty string').toBeTruthy();
+      const imageUrlParts = new URL(fetchedImage.image_url as string);
+      expect(imageUrlParts.protocol, 'Image URL protocol should be http:').toBe('http:');
+      expect(imageUrlParts.port, 'Image URL port should be 8000').toBe('8000');
+      expect(fetchedImage.relative_file_path, 'fetchedImage.relative_file_path should be a non-empty string').toBeTruthy();
+      expect(imageUrlParts.pathname, 'Image URL pathname is incorrect').toBe(`/uploaded_images/${fetchedImage.relative_file_path}`);
+
+      // Validate thumbnail_url structure
+      expect(fetchedImage.thumbnail_url, 'fetchedImage.thumbnail_url should be a non-empty string').toBeTruthy();
+      const thumbnailUrlParts = new URL(fetchedImage.thumbnail_url as string);
+      expect(thumbnailUrlParts.protocol, 'Thumbnail URL protocol should be http:').toBe('http:');
+      expect(thumbnailUrlParts.port, 'Thumbnail URL port should be 8000').toBe('8000');
+      expect(fetchedImage.relative_thumbnail_path, 'fetchedImage.relative_thumbnail_path should be a non-empty string').toBeTruthy();
+      expect(thumbnailUrlParts.pathname, 'Thumbnail URL pathname is incorrect').toBe(`/thumbnails/${fetchedImage.relative_thumbnail_path}`);
     });
 
     it('should update an image metadata', async () => {
