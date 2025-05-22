@@ -36,8 +36,7 @@ export const useImageStore = defineStore('image', {
     async fetchImages(
         skip: number = 0,
         limit: number = 50,
-        categoryId?: number,
-        speciesId?: number
+        categoryId?: string
       ) {
       this.isLoading = true;
       this.error = null;
@@ -46,7 +45,7 @@ export const useImageStore = defineStore('image', {
         // 注意：OpenAPI 直接返回数组，没有分页元数据。
         // 如果后端支持返回总数，这里可以更新 totalImages。
         // 目前，我们只能获取当前页的图片。
-        const fetchedImages = await getImages(skip, limit, categoryId, speciesId);
+        const fetchedImages = await getImages(skip, limit, categoryId);
         this.images = fetchedImages;
         // 假设 totalImages 和 currentPage 需要另外管理或通过其他方式获取
         // this.totalImages = ... ;
@@ -64,7 +63,7 @@ export const useImageStore = defineStore('image', {
       }
     },
 
-    async fetchImageDetails(id: number) {
+    async fetchImageDetails(id: string) {
       this.isLoading = true;
       this.error = null;
       this.currentImage = null;
@@ -102,7 +101,7 @@ export const useImageStore = defineStore('image', {
       }
     },
 
-    async editImage(id: number, imageData: ImageUpdate) {
+    async editImage(id: string, imageData: ImageUpdate) {
       this.isLoading = true;
       this.error = null;
       this.validationErrors = null;
@@ -128,7 +127,7 @@ export const useImageStore = defineStore('image', {
       }
     },
 
-    async removeImage(id: number) {
+    async removeImage(id: string) {
       this.isLoading = true;
       this.error = null;
       this.validationErrors = null;

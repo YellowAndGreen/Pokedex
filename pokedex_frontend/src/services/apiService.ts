@@ -202,10 +202,10 @@ export const uploadImage = async (imageFile: File, metadata: ImageCreateMetadata
 
 /**
  * 检索图片列表。支持分页和过滤。
- * 对应: GET /api/images/
- * @param skip - 要跳过的记录数。
- * @param limit - 要返回的最大记录数。
- * @param categoryId - 按类别 ID 可选过滤（UUID字符串）。
+ * 对应: GET /api/categories/{category_id}/ 然后提取图片
+ * @param skip - 要跳过的记录数（注意：由于使用类别API，此参数可能不生效，分页需在前端处理）。
+ * @param limit - 要返回的最大记录数（注意：由于使用类别API，此参数可能不生效，分页需在前端处理）。
+ * @param categoryId - 必需的类别 ID (UUID字符串)。
  * @returns 一个解析为图片数据数组的 Promise。
  */
 export const getImages = async (
@@ -213,19 +213,32 @@ export const getImages = async (
   limit: number = 50,
   categoryId?: string
 ): Promise<ImageRead[]> => {
-  try {
-    const params: any = { skip, limit };
-    if (categoryId) {
-      params.category_id = categoryId;
-    }
+  if (!categoryId) {
+    // 后端API需要通过类别ID获取图片，如果没有提供则抛出错误
+    console.error('getImages Svc: categoryId is required to fetch images.');
+    throw new Error('categoryId is required to fetch images.');
+  }
 
-    // WARNING: The endpoint GET /api/images/ is NOT defined in the provided openapi.json.
-    // This function will likely cause a 404 if the backend strictly follows the openapi.json.
-    // If images are meant to be fetched via categories, this function might need to be removed or re-designed.
-    const response: AxiosResponse<ImageRead[]> = await apiClient.get('/images/', { params });
+  try {
+    // 通过分类ID获取图片，使用/api/categories/{categoryId}/端点
+    // 该端点返回类别及其包含的所有图片
+    const response = await apiClient.get(`/categories/${categoryId}/`);
     
-    // Assuming backend returns ImageRead[] where each ImageRead already contains image_url and thumbnail_url
-    return response.data;
+    // 从response.data.images中提取图片列表
+    if (response.data && Array.isArray(response.data.images)) {
+      // 提取图片数组，可以在这里进行前端分页
+      let images = response.data.images as ImageRead[];
+      
+      // 如果需要，前端分页处理
+      if (skip > 0 || limit < images.length) {
+        images = images.slice(skip, skip + limit);
+      }
+      
+      return images;
+    }
+    
+    // 如果response.data.images不是数组或不存在，返回空数组
+    return [];
   } catch (error) {
     handleApiError(error as AxiosError);
     throw error;

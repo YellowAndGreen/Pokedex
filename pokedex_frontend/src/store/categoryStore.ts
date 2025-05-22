@@ -26,7 +26,7 @@ export const useCategoryStore = defineStore('category', {
     validationErrors: null,
   }),
   getters: {
-    getCategoryNameById: (state) => (id: number): string | undefined => {
+    getCategoryNameById: (state) => (id: string): string | undefined => {
       const category = state.categories.find(cat => cat.id === id);
       return category?.name;
     },
@@ -49,7 +49,7 @@ export const useCategoryStore = defineStore('category', {
       }
     },
 
-    async fetchCategoryDetails(id: number) {
+    async fetchCategoryDetails(id: string) {
       this.isLoading = true;
       this.error = null;
       this.currentCategory = null;
@@ -87,7 +87,7 @@ export const useCategoryStore = defineStore('category', {
       }
     },
 
-    async editCategory(id: number, categoryData: CategoryUpdate) {
+    async editCategory(id: string, categoryData: CategoryUpdate) {
       this.isLoading = true;
       this.error = null;
       this.validationErrors = null;
@@ -113,7 +113,7 @@ export const useCategoryStore = defineStore('category', {
       }
     },
 
-    async removeCategory(id: number) {
+    async removeCategory(id: string) {
       this.isLoading = true;
       this.error = null;
       this.validationErrors = null;
