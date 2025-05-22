@@ -1,0 +1,156 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## Python编码规范
+
+### 1. 代码风格
+- 代码遵循 PEP8 规范，适当放宽行宽限制（可超过 79，但不超过 120）。
+- 使用 4 个空格缩进，不使用制表符（Tab）。
+- 每行代码尽量简洁，避免过长的单行代码。
+- 适当添加空行，使代码结构清晰（如类、函数之间空一行）。
+
+### 2. 命名规范
+- 变量、函数使用 `snake_case`，避免使用单字母变量名，除非在临时变量（如 `i, j, k`）的情况下。
+- 类名使用 `PascalCase`。
+- 常量使用 `UPPER_CASE`，并定义在模块的开头。
+- 模块和文件名使用 `小写 + 下划线` 格式。
+
+### 3. 注释与文档
+- 重要逻辑、复杂代码块必须添加注释，使用 `#` 进行单行注释。
+- 每个类、函数都要有 docstring 说明，格式如下：
+  ```python
+  def example_function(param1: int, param2: str) -> bool:
+      """
+      说明函数的用途。
+      
+      参数:
+          param1 (int): 参数 1 说明
+          param2 (str): 参数 2 说明
+      
+      返回:
+          bool: 返回值说明
+      """
+      ```
+- 避免写无意义的注释，如：
+  ```python
+  x = 10  # 给 x 赋值 10  (不推荐)
+  ```
+
+### 4. 代码结构
+- 每个 Python 文件都应以 `#!/usr/bin/env python3` 开头（如果是可执行脚本）。
+- 按照 `import` 顺序：标准库 -> 第三方库 -> 本项目模块，每个部分之间空一行。
+- `__init__.py` 仅用于必要的包初始化，避免写复杂逻辑。
+
+### 5. 异常处理
+- 避免 `except Exception:` 这种宽泛的异常处理，尽量捕获特定异常类型。
+- 使用 `try-except` 时，必须加日志或错误提示，避免静默错误。
+  ```python
+  try:
+      result = some_function()
+  except ValueError as e:
+      logger.error(f"参数错误: {e}")
+      raise
+  ```
+
+### 6. 逻辑与优化
+- 使用列表推导式，但避免嵌套过深的表达式。
+- 尽量使用 `with` 语句管理资源（如文件操作）。
+- 避免使用 `global` 变量，尽量封装到类或函数中。
+- 如果代码涉及异步操作，使用 `async/await` 而非 `threading`，避免不必要的线程。
+
+
+## 编码SOLID原则
+
+### 1. 单一职责原则
+
+**规则名称**：SRP-001 模块职责隔离  
+
+- 每个类/函数仅实现单一功能目标
+- 混合数据操作与IO操作的类必须拆解
+- 辅助逻辑通过装饰器实现分离
+
+```python
+# 合规示例
+class DataTransformer:
+    def normalize(self, data): ...
+
+class DataExporter:
+    @log_execution  # 装饰器处理日志职责
+    def to_json(self, data): ...
+```
+
+### 2. 开闭原则
+
+**规则名称**：OCP-002 抽象扩展机制  
+
+- 核心逻辑必须定义在抽象基类中
+- 新增功能通过继承实现，禁止修改已有类
+- 使用ABC模块强制接口定义
+
+```python
+# 合规示例
+from abc import ABC, abstractmethod
+
+class Renderer(ABC):
+    @abstractmethod
+    def draw(self): ...
+
+class SVGRenderer(Renderer):
+    def draw(self): ...  # 扩展实现
+```
+
+### 3. 里氏替换原则  
+
+**规则名称**：LSP-003 行为一致性校验  
+
+- 子类方法参数必须兼容父类类型
+- 禁止重写方法抛出NotImplementedError
+- 通过mypy类型检查验证签名兼容性
+
+```python
+# 违规示例
+class Database:
+    def connect(self, uri: str): ...
+
+class MockDB(Database):
+    def connect(self, uri: int): ...  # 参数类型不兼容
+```
+
+### 4. 接口隔离原则
+
+**规则名称**：ISP-004 精准接口依赖  
+
+- 每个抽象基类不超过3个抽象方法
+- 客户端不应继承未使用的接口
+- 通过Mixin组合实现多功能集成
+
+```python
+# 合规示例
+class Readable(ABC):
+    @abstractmethod
+    def read(self): ...
+
+class Writable(ABC):
+    @abstractmethod
+    def write(self): ...
+
+class ReadWriteClient(Readable, Writable): ...
+```
+
+### 5. 依赖倒置原则
+
+**规则名称**：DIP-005 抽象依赖注入  
+
+- 构造函数必须声明抽象类型参数
+- 禁止在业务逻辑中实例化具体类
+- 依赖配置通过DI容器实现
+
+```python
+# 合规示例
+class PaymentProcessor:
+    def __init__(self, gateway: PaymentGateway): ...  # 依赖抽象接口
+
+class StripeGateway(PaymentGateway): ...
+```

@@ -5,7 +5,6 @@ import {
   createCategory as apiCreateCategory,
   deleteCategory as apiDeleteCategory,
   deleteImage as apiDeleteImage, // For direct cleanup if needed
-  getImages as apiGetImages, // For verification or direct checks
   getImageById as apiGetImageById, // For verification
   getCategories as apiGetCategories, // <<< IMPORT ADDED FOR HEALTH CHECK
   FULL_API_URL,
