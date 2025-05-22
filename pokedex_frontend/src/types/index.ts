@@ -34,10 +34,9 @@ export interface CategoryCreate {
  * 对应 OpenAPI schema: CategoryRead
  */
 export interface CategoryRead {
-  id: number;          // 类别的唯一标识符
+  id: string;          // 类别的唯一标识符（UUID）
   name: string;        // 类别名称
   description?: string | null; // 可选描述
-  image_count: number; // 此类别中的图片数量
 }
 
 /**
@@ -57,10 +56,11 @@ export interface CategoryUpdate {
  * 对应 POST /api/images/ 的参数
  */
 export interface ImageCreateMetadata {
-  title: string;        // 图片标题
+  title: string | null;       // 图片标题 (openapi: string | null)
   description?: string | null; // 可选描述
-  category_id: number;  // 图片所属类别的 ID
-  species_id?: number | null;  // 图片关联物种的可选 ID
+  category_id: string;        // 图片所属类别的 ID（UUID）
+  tags?: string | null;         // 图片的标签，逗号分隔 (openapi: string | null)
+  set_as_category_thumbnail?: boolean | null; // 是否将此图片设置为类别的缩略图 (openapi: boolean | null, default: false)
 }
 
 /**
@@ -68,19 +68,22 @@ export interface ImageCreateMetadata {
  * 对应 OpenAPI schema: ImageRead
  */
 export interface ImageRead {
-  id: number;             // 图片的唯一标识符
-  title: string;          // 图片标题
-  description?: string | null;   // 可选描述
-  category_id: number;    // 图片所属类别的 ID
-  species_id?: number | null;    // 可选的物种 ID
-  file_path: string;      // 服务器端原始图片文件的路径 (主要供后端使用)
-  thumbnail_path: string; // 服务器端缩略图文件的路径 (主要供后端使用)
-  created_at: string;     // 创建时间戳 (ISO 8601 格式)
-  updated_at: string;     // 最后更新时间戳 (ISO 8601 格式)
-
-  // 前端辅助属性，用于直接在模板中显示图片
-  view_url?: string;      // 查看完整图片的 URL
-  thumbnail_url?: string; // 缩略图的 URL
+  id: string;                        // 图片的唯一标识符（UUID）
+  title: string | null;              // 图片标题 (openapi: string | null)
+  description?: string | null;          // 可选描述 (openapi: string | null)
+  category_id: string;               // 图片所属类别的 ID（UUID）
+  original_filename?: string | null;  // 用户上传时的原始文件名 (openapi: string | null)
+  stored_filename?: string | null;    // 服务器存储的UUID文件名 (openapi: string | null)
+  relative_file_path?: string | null; // 相对于图片存储根目录的路径 (openapi: string | null)
+  relative_thumbnail_path?: string | null; // 相对于缩略图存储根目录的路径 (openapi: string | null)
+  mime_type?: string | null;          // 如 image/jpeg (openapi: string | null)
+  size_bytes?: number | null;         // 文件大小 (openapi: integer | null)
+  tags?: string | null;               // 逗号分隔的标签字符串或JSON字符串 (openapi: string | null)
+  created_at: string;                // 创建时间戳 (ISO 8601 格式)
+  updated_at: string | null;         // 最后更新时间戳 (openapi: string | null)
+  file_metadata?: object | null;      // (openapi: object | null)
+  image_url: string;                 // 查看完整图片的 URL (openapi: image_url, required)
+  thumbnail_url: string | null;        // 缩略图的 URL (openapi: thumbnail_url, required, nullable)
 }
 
 /**
@@ -88,10 +91,11 @@ export interface ImageRead {
  * 对应 OpenAPI schema: ImageUpdate
  */
 export interface ImageUpdate {
-  title?: string;       // 可选的新标题
-  description?: string | null; // 可选的新描述
-  category_id?: number; // 可选的新类别 ID
-  species_id?: number | null;  // 可选的新物种 ID
+  title?: string | null;        // 可选的新标题 (openapi: string | null)
+  description?: string | null;  // 可选的新描述 (openapi: string | null)
+  tags?: string | null;         // 可选的新标签 (openapi: string | null)
+  category_id?: string | null;  // 可选的新类别 ID (UUID) (openapi: string | null)
+  set_as_category_thumbnail?: boolean | null; // (openapi: boolean | null)
 }
 
 // --- Species Types (物种类型) ---

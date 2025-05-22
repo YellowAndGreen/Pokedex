@@ -94,13 +94,13 @@ export const getCategories = async (skip: number = 0, limit: number = 100): Prom
 
 /**
  * 通过 ID 检索特定类别。
- * 对应: GET /api/categories/{category_id}
- * @param categoryId - 要检索的类别的 ID。
+ * 对应: GET /api/categories/{category_id}/
+ * @param categoryId - 要检索的类别的 ID（UUID字符串）。
  * @returns 一个解析为类别数据的 Promise。
  */
-export const getCategoryById = async (categoryId: number): Promise<CategoryRead> => {
+export const getCategoryById = async (categoryId: string): Promise<CategoryRead> => {
   try {
-    const response: AxiosResponse<CategoryRead> = await apiClient.get(`/categories/${categoryId}`);
+    const response: AxiosResponse<CategoryRead> = await apiClient.get(`/categories/${categoryId}/`);
     return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
@@ -110,14 +110,14 @@ export const getCategoryById = async (categoryId: number): Promise<CategoryRead>
 
 /**
  * 更新现有类别。
- * 对应: PUT /api/categories/{category_id}
- * @param categoryId - 要更新的类别的 ID。
+ * 对应: PUT /api/categories/{category_id}/
+ * @param categoryId - 要更新的类别的 ID（UUID字符串）。
  * @param categoryData - 用于更新类别的数据。
  * @returns 一个解析为已更新类别数据的 Promise。
  */
-export const updateCategory = async (categoryId: number, categoryData: CategoryUpdate): Promise<CategoryRead> => {
+export const updateCategory = async (categoryId: string, categoryData: CategoryUpdate): Promise<CategoryRead> => {
   try {
-    const response: AxiosResponse<CategoryRead> = await apiClient.put(`/categories/${categoryId}`, categoryData);
+    const response: AxiosResponse<CategoryRead> = await apiClient.put(`/categories/${categoryId}/`, categoryData);
     return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
@@ -127,14 +127,13 @@ export const updateCategory = async (categoryId: number, categoryData: CategoryU
 
 /**
  * 通过 ID 删除类别。
- * 对应: DELETE /api/categories/{category_id}
- * @param categoryId - 要删除的类别的 ID。
+ * 对应: DELETE /api/categories/{category_id}/
+ * @param categoryId - 要删除的类别的 ID（UUID字符串）。
  * @returns 一个解析为已删除类别数据（或确认信息）的 Promise。
  */
-export const deleteCategory = async (categoryId: number): Promise<CategoryRead> => {
+export const deleteCategory = async (categoryId: string): Promise<CategoryRead> => {
   try {
-    // OpenAPI 规范称 DELETE 返回 CategoryRead，如果只是 204 或其他确认信息，则调整
-    const response: AxiosResponse<CategoryRead> = await apiClient.delete(`/categories/${categoryId}`);
+    const response: AxiosResponse<CategoryRead> = await apiClient.delete(`/categories/${categoryId}/`);
     return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
@@ -148,10 +147,10 @@ export const deleteCategory = async (categoryId: number): Promise<CategoryRead> 
  * 获取图片的缩略图 URL。
  * 注意：此函数返回 URL 字符串。实际图片由浏览器的 <img> src 加载。
  * 对应: GET /api/images/{image_id}/thumbnail
- * @param imageId - 图片的 ID。
+ * @param imageId - 图片的 ID（UUID字符串）。
  * @returns 图片缩略图的 URL 字符串。
  */
-export const getImageThumbnailUrl = (imageId: number): string => {
+export const getImageThumbnailUrl = (imageId: string): string => {
   return `${FULL_API_URL}/images/${imageId}/thumbnail`;
 };
 
@@ -159,16 +158,16 @@ export const getImageThumbnailUrl = (imageId: number): string => {
  * 获取用于查看图片的 URL。
  * 注意：此函数返回 URL 字符串。实际图片由浏览器的 <img> src 加载。
  * 对应: GET /api/images/{image_id}/view
- * @param imageId - 图片的 ID。
+ * @param imageId - 图片的 ID（UUID字符串）。
  * @returns 查看图片的 URL 字符串。
  */
-export const getViewImageUrl = (imageId: number): string => {
+export const getViewImageUrl = (imageId: string): string => {
   return `${FULL_API_URL}/images/${imageId}/view`;
 };
 
 /**
  * 上传新图片及其元数据。
- * 对应: POST /api/images/
+ * 对应: POST /api/images/upload/
  * @param imageFile - 图片文件 (File 对象)。
  * @param metadata - 图片的元数据 (标题、category_id 等)。
  * @returns 一个解析为已创建图片数据的 Promise。
@@ -176,27 +175,23 @@ export const getViewImageUrl = (imageId: number): string => {
 export const uploadImage = async (imageFile: File, metadata: ImageCreateMetadata): Promise<ImageRead> => {
   const formData = new FormData();
   formData.append('file', imageFile);
-  formData.append('title', metadata.title);
-  if (metadata.description) {
-    formData.append('description', metadata.description);
-  }
-  formData.append('category_id', metadata.category_id.toString());
-  if (metadata.species_id !== undefined && metadata.species_id !== null) {
-    formData.append('species_id', metadata.species_id.toString());
-  }
+  formData.append('category_id', metadata.category_id); // Required
+
+  // For fields that are string | null in openapi, send empty string if null to ensure field presence.
+  formData.append('title', metadata.title ?? ''); 
+  formData.append('description', metadata.description ?? '');
+  formData.append('tags', metadata.tags ?? '');
+  
+  // For set_as_category_thumbnail (boolean | null, default: false)
+  // Send its string representation. Backend should handle 'false' string or default if not sent.
+  // Sending explicitly based on frontend type, converting boolean to string.
+  formData.append('set_as_category_thumbnail', (metadata.set_as_category_thumbnail === true).toString());
 
   try {
-    const response: AxiosResponse<ImageRead> = await apiClient.post('/images/', formData, {
-      headers: {
-        // 'Content-Type': 'multipart/form-data', // Axios 通常会自动为 FormData 设置此项
-      },
+    const response: AxiosResponse<ImageRead> = await apiClient.post('/images/upload/', formData, {
+      // headers: { 'Content-Type': 'multipart/form-data' } // Axios usually sets this automatically
     });
-    // 使用专用端点增强 URL
-    return {
-      ...response.data,
-      view_url: getViewImageUrl(response.data.id),
-      thumbnail_url: getImageThumbnailUrl(response.data.id),
-    };
+    return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
     throw error;
@@ -208,31 +203,27 @@ export const uploadImage = async (imageFile: File, metadata: ImageCreateMetadata
  * 对应: GET /api/images/
  * @param skip - 要跳过的记录数。
  * @param limit - 要返回的最大记录数。
- * @param categoryId - 按类别 ID 可选过滤。
- * @param speciesId - 按物种 ID 可选过滤。
+ * @param categoryId - 按类别 ID 可选过滤（UUID字符串）。
  * @returns 一个解析为图片数据数组的 Promise。
  */
 export const getImages = async (
   skip: number = 0,
   limit: number = 50,
-  categoryId?: number,
-  speciesId?: number
+  categoryId?: string
 ): Promise<ImageRead[]> => {
-  const params: Record<string, any> = { skip, limit };
-  if (categoryId !== undefined) {
-    params.category_id = categoryId;
-  }
-  if (speciesId !== undefined) {
-    params.species_id = speciesId;
-  }
   try {
+    const params: any = { skip, limit };
+    if (categoryId) {
+      params.category_id = categoryId;
+    }
+
+    // WARNING: The endpoint GET /api/images/ is NOT defined in the provided openapi.json.
+    // This function will likely cause a 404 if the backend strictly follows the openapi.json.
+    // If images are meant to be fetched via categories, this function might need to be removed or re-designed.
     const response: AxiosResponse<ImageRead[]> = await apiClient.get('/images/', { params });
-    // 使用专用端点增强每个图片的 URL
-    return response.data.map(image => ({
-      ...image,
-      view_url: getViewImageUrl(image.id),
-      thumbnail_url: getImageThumbnailUrl(image.id),
-    }));
+    
+    // Assuming backend returns ImageRead[] where each ImageRead already contains image_url and thumbnail_url
+    return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
     throw error;
@@ -241,19 +232,14 @@ export const getImages = async (
 
 /**
  * 通过 ID 检索特定图片。
- * 对应: GET /api/images/{image_id}
- * @param imageId - 要检索的图片的 ID。
+ * 对应: GET /api/images/{image_id}/
+ * @param imageId - 要检索的图片的 ID（UUID字符串）。
  * @returns 一个解析为图片数据的 Promise。
  */
-export const getImageById = async (imageId: number): Promise<ImageRead> => {
+export const getImageById = async (imageId: string): Promise<ImageRead> => {
   try {
-    const response: AxiosResponse<ImageRead> = await apiClient.get(`/images/${imageId}`);
-    // 使用专用端点增强 URL
-    return {
-      ...response.data,
-      view_url: getViewImageUrl(response.data.id),
-      thumbnail_url: getImageThumbnailUrl(response.data.id),
-    };
+    const response: AxiosResponse<ImageRead> = await apiClient.get(`/images/${imageId}/`);
+    return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
     throw error;
@@ -262,20 +248,15 @@ export const getImageById = async (imageId: number): Promise<ImageRead> => {
 
 /**
  * 更新现有图片的元数据。
- * 对应: PUT /api/images/{image_id}
- * @param imageId - 要更新的图片的 ID。
+ * 对应: PUT /api/images/{image_id}/
+ * @param imageId - 要更新的图片的 ID（UUID字符串）。
  * @param imageData - 用于更新图片的数据。
  * @returns 一个解析为已更新图片数据的 Promise。
  */
-export const updateImage = async (imageId: number, imageData: ImageUpdate): Promise<ImageRead> => {
+export const updateImage = async (imageId: string, imageData: ImageUpdate): Promise<ImageRead> => {
   try {
-    const response: AxiosResponse<ImageRead> = await apiClient.put(`/images/${imageId}`, imageData);
-    // 使用专用端点增强 URL
-     return {
-      ...response.data,
-      view_url: getViewImageUrl(response.data.id),
-      thumbnail_url: getImageThumbnailUrl(response.data.id),
-    };
+    const response: AxiosResponse<ImageRead> = await apiClient.put(`/images/${imageId}/`, imageData);
+    return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);
     throw error;
@@ -284,13 +265,13 @@ export const updateImage = async (imageId: number, imageData: ImageUpdate): Prom
 
 /**
  * 通过 ID 删除图片。
- * 对应: DELETE /api/images/{image_id}
- * @param imageId - 要删除的图片的 ID。
+ * 对应: DELETE /api/images/{image_id}/
+ * @param imageId - 要删除的图片的 ID（UUID字符串）。
  * @returns 一个解析为已删除图片数据（或确认信息）的 Promise。
  */
-export const deleteImage = async (imageId: number): Promise<ImageRead> => { // OpenAPI 指定返回 ImageRead
+export const deleteImage = async (imageId: string): Promise<ImageRead> => { // OpenAPI 指定返回 ImageRead
   try {
-    const response: AxiosResponse<ImageRead> = await apiClient.delete(`/images/${imageId}`);
+    const response: AxiosResponse<ImageRead> = await apiClient.delete(`/images/${imageId}/`);
     return response.data;
   } catch (error) {
     handleApiError(error as AxiosError);

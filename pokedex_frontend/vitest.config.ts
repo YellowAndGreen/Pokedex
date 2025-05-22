@@ -57,7 +57,10 @@ export default mergeConfig(
 
       // (可选) 如果您的测试文件不在默认位置 (例如 `*.{test,spec}.{js,ts,jsx,tsx}`)
       // 或者您想更精确地控制包含哪些文件：
-      // include: ['tests/unit/**/*.spec.ts'],
+      include: [
+        'tests/**/*.spec.{js,ts,jsx,tsx}',
+        'tests/**/*.test.{js,ts,jsx,tsx}',
+      ],
 
       // (可选) 排除某些文件或目录
       // exclude: [
