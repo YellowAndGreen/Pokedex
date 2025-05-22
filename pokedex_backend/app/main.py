@@ -64,6 +64,7 @@ def create_application() -> FastAPI:
                 processed_origins = [ # 开发时默认值
                     "http://localhost", "http://localhost:5173",
                     "http://localhost:3000", "http://localhost:8080",
+                    "http://127.0.0.1:5173", # 添加此源
                 ]
                 print(f"Warning: backend_cors_origins not robustly set (or is '*'), defaulting to: {processed_origins} for non-production environment.")
             elif origins_to_allow_str == ['*']:

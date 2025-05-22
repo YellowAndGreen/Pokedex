@@ -124,3 +124,4 @@ pokedex_frontend/pnpm-debug.log*
 # Editor directories and files
 pokedex_frontend/.vscode/
 pokedex_frontend/.idea/
+node_modules

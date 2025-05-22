@@ -37,6 +37,10 @@ export interface CategoryRead {
   id: string;          // 类别的唯一标识符（UUID）
   name: string;        // 类别名称
   description?: string | null; // 可选描述
+  created_at: string;  // 创建时间戳 (ISO 8601 格式)
+  updated_at: string;  // 最后更新时间戳 (ISO 8601 格式)
+  thumbnail_url: string | null; // 类别的缩略图 URL
+  // thumbnail_path?: string | null; // 这个字段在 openapi.json 中也有，如果需要也可以加上
 }
 
 /**

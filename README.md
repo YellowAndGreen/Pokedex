@@ -212,8 +212,8 @@ Pokedex 是一个全栈宝可梦图鉴应用程序，允许用户浏览、搜索
 
 后端服务启动后，可以通过以下路径访问自动生成的 API 文档：
 
-* **Swagger UI:** `http://localhost:8000/docs`
-* **ReDoc:** `http://localhost:8000/redoc`
+* **Swagger UI:** `http://localhost:8000/api/docs`
+* **ReDoc:** `http://localhost:8000/api/redoc`
 
 ## 运行测试
 
