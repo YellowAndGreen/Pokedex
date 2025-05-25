@@ -73,13 +73,8 @@ onMounted(async () => {
 
       return {
         ...category,
-        // Ensure all CategoryRead fields are present, and add processed ones if any
-        // In this case, we format the date directly in the template or use a computed prop if more complex
-        // and derive displayImageUrl directly.
-        // The main change is that `updated_at` and `thumbnail_url` come directly from `category`.
-        // We are essentially just ensuring `displayImageUrl` has a fallback and is correctly prefixed.
-        thumbnail_url: displayImageUrl || placeholderImage, // Override thumbnail_url with processed one for template
-        isExpanded: false, // Initialize expansion state
+        thumbnail_url: displayImageUrl || placeholderImage, 
+        isExpanded: false, // Categories start collapsed
         randomBorderColorHex: hexColor,
         randomBorderColorRGB: rgbColorString,
       }
@@ -157,15 +152,18 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
         >
           <VCardText class="pa-0">
             <div 
-              class="d-flex justify-center align-start pa-3 mb-2 rounded overflow-hidden" 
-              :style="{ backgroundColor: `rgba(var(--card-border-color-rgb), 0.15)` }"
+              class="d-flex justify-center align-start pa-3 mb-2 rounded overflow-hidden image-container-transition"
+              :style="[
+                { backgroundColor: `rgba(var(--card-border-color-rgb), 0.15)` },
+                category.isExpanded ? { 'max-height': '500px' } : { 'max-height': '140px' } // 动态高度
+              ]"
             >
               <VImg
                 :src="category.thumbnail_url || placeholderImage"
-                height="140px"
+                :height="undefined"
                 width="145px"
-                aspect-ratio="1"
-                cover
+                :aspect-ratio="undefined"
+                :cover="false"
                 class="rounded-lg image-fade-in"
                 transition="fade-transition"
               >
@@ -181,7 +179,15 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
                   </div>
                 </template>
                 <template #error>
-                  <VImg :src="placeholderImage" height="140px" width="145px" cover class="rounded-lg" transition="fade-transition" />
+                  <VImg 
+                    :src="placeholderImage" 
+                    :height="undefined"
+                    width="145px"
+                    :aspect-ratio="undefined"
+                    :cover="false"
+                    class="rounded-lg" 
+                    transition="fade-transition" 
+                  />
                 </template>
               </VImg>
             </div>
@@ -228,7 +234,6 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
                     block 
                     class="mt-4"
                     variant="flat"
-                    :color="false"
                     :style="{ 
                       backgroundColor: category.randomBorderColorHex,
                       color: 'white'
@@ -250,6 +255,11 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
 <style scoped>
 .bg-light-primary {
   background-color: rgba(var(--v-theme-primary), 0.1) !important;
+}
+
+.image-container-transition {
+  transition: max-height 0.5s ease-in-out;
+  overflow: hidden; /* 确保在折叠动画过程中内容不会溢出 */
 }
 
 @keyframes bottomBorderGlow {
