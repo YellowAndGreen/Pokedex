@@ -22,7 +22,7 @@ EFFECTIVE_BACKEND_HOST_FOR_FRONTEND_API=$([ "$BACKEND_HOST" = "0.0.0.0" ] && ech
 FRONTEND_API_URL="http://${EFFECTIVE_BACKEND_HOST_FOR_FRONTEND_API}:${BACKEND_PORT}/api"
 STATIC_FILES_BASE_URL="http://${EFFECTIVE_BACKEND_HOST_FOR_FRONTEND_API}:${BACKEND_PORT}"
 FRONTEND_ORIGIN_HOST=$([ "$BACKEND_HOST" = "0.0.0.0" ] && echo "localhost" || echo "$BACKEND_HOST")
-CSRF_ORIGINS="http://${FRONTEND_ORIGIN_HOST}:${FRONTEND_PORT},http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT}"
+CSRF_ORIGINS="[\"http://${FRONTEND_ORIGIN_HOST}:${FRONTEND_PORT}\",\"http://localhost:${FRONTEND_PORT}\",\"http://127.0.0.1:${FRONTEND_PORT}\"]"
 
 # 创建日志目录 (相对于项目根目录)
 mkdir -p "$LOGS_DIR"
@@ -56,7 +56,7 @@ echo "正在启动后端服务 (在 tmux 会话 '$BACKEND_TMUX_SESSION' 中)..."
 
 BACKEND_ENV_VARS="BACKEND_CORS_ORIGINS='$CSRF_ORIGINS' SERVER_HOST='$BACKEND_HOST' SERVER_PORT='$BACKEND_PORT'"
 # Log path is now absolute
-BACKEND_START_CMD="cd '$BACKEND_DIR' && $BACKEND_ENV_VARS uvicorn app.main:app --host \"\$SERVER_HOST\" --port \"\$SERVER_PORT\" --reload > '$LOGS_DIR/backend.log' 2>&1"
+BACKEND_START_CMD="cd '$BACKEND_DIR' && $BACKEND_ENV_VARS uvicorn app.main:app --host '$BACKEND_HOST' --port '$BACKEND_PORT' --reload > '$LOGS_DIR/backend.log' 2>&1"
 
 if tmux has-session -t "$BACKEND_TMUX_SESSION" 2>/dev/null; then
   echo "发现已存在的后端 tmux 会话 '$BACKEND_TMUX_SESSION'，将先终止它..."
