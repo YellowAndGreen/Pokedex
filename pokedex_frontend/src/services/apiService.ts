@@ -13,9 +13,9 @@ import type {
   HTTPValidationError
 } from '@/types'; // 使用路径别名 @
 
-// 如果未设置 VITE_API_URL，则默认为 'http://localhost:8000'。
-// 请确保您的 .env 文件中的 VITE_API_URL 设置为协议和主机，例如 http://localhost:8000
-const API_BASE_URL_INTERNAL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// 如果未设置 VITE_API_BASE_URL，则默认为 'http://localhost:8000'。
+// 请确保您的 .env 文件中的 VITE_API_BASE_URL 设置为协议和主机，例如 http://localhost:8000
+const API_BASE_URL_INTERNAL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 export const API_BASE_URL = API_BASE_URL_INTERNAL; // 导出
 const API_PREFIX = '/api'; // API 端点的前缀
 export const FULL_API_URL = `${API_BASE_URL}${API_PREFIX}`;
