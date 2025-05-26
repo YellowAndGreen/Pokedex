@@ -155,24 +155,31 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
               class="d-flex justify-center align-start pa-3 mb-2 rounded overflow-hidden image-container-transition"
               :style="[
                 { backgroundColor: `rgba(var(--card-border-color-rgb), 0.15)` },
-                category.isExpanded ? { 'max-height': '500px' } : { 'max-height': '140px' } // 动态高度
+                category.isExpanded ? { 'max-height': '500px' } : {}
               ]"
             >
               <VImg
                 :src="category.thumbnail_url || placeholderImage"
                 :height="undefined"
-                width="145px"
-                :aspect-ratio="undefined"
-                :cover="false"
+                :width="category.isExpanded ? '145px' : '100%'"
+                :aspect-ratio="category.isExpanded ? undefined : 1"
+                :cover="!category.isExpanded"
                 class="rounded-lg image-fade-in"
                 transition="fade-transition"
               >
                 <template #placeholder>
-                  <div class="d-flex align-center justify-center" style="height: 140px; width: 145px;">
+                  <div 
+                    class="d-flex align-center justify-center"
+                    :style="{ 
+                      height: category.isExpanded ? '140px' : 'auto', 
+                      width: category.isExpanded ? '145px' : '100%' 
+                    }"
+                  >
                     <VSkeletonLoader
                       type="image"
-                      height="140"
-                      width="145"
+                      :height="category.isExpanded ? '140' : undefined"
+                      :width="category.isExpanded ? '145' : '100%'"
+                      :aspect-ratio="category.isExpanded ? undefined : 1"
                       class="rounded-lg"
                       :style="{ backgroundColor: `rgba(var(--card-border-color-rgb), 0.05)` }"
                     />
@@ -182,9 +189,9 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
                   <VImg 
                     :src="placeholderImage" 
                     :height="undefined"
-                    width="145px"
-                    :aspect-ratio="undefined"
-                    :cover="false"
+                    :width="category.isExpanded ? '145px' : '100%'"
+                    :aspect-ratio="category.isExpanded ? undefined : 1"
+                    :cover="!category.isExpanded"
                     class="rounded-lg" 
                     transition="fade-transition" 
                   />
