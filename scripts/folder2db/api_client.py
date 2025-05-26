@@ -8,6 +8,7 @@ import logging
 import requests
 from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urljoin
+import mimetypes
 
 from .config import MAX_RETRIES
 
@@ -96,8 +97,9 @@ class APIClient:
         # 准备表单数据
         data = {
             "category_id": category_id,
-            "set_as_category_thumbnail": "true" if set_as_thumbnail else "false",
         }
+        if set_as_thumbnail:
+            data["set_as_category_thumbnail"] = "true"
 
         if title:
             data["title"] = title
@@ -110,8 +112,16 @@ class APIClient:
         filename = os.path.basename(image_path)
         logger.debug(f"上传图片: {filename} 到类别ID: {category_id}")
 
+        content_type, _ = mimetypes.guess_type(image_path)
+        if content_type is None:
+            content_type = 'application/octet-stream'
+            logger.warning(f"无法自动检测文件 '{filename}' 的MIME类型，使用默认值: {content_type}")
+        
+        logger.info(f"为文件 '{filename}' 设置 Content-Type 为: {content_type}")
+
         with open(image_path, "rb") as f:
-            files = {"file": (filename, f)}
+            # 使用原始 filename 进行上传
+            files = {"file": (filename, f, content_type)}
             for attempt in range(MAX_RETRIES):
                 try:
                     response = self.session.post(url, data=data, files=files)

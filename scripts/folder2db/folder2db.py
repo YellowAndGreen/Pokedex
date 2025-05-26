@@ -36,8 +36,19 @@ def setup_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="将文件夹结构导入到图鉴数据库")
     parser.add_argument("root_dir", help="包含Category文件夹的根目录")
     parser.add_argument("--api-url", default=DEFAULT_API_URL, help="API基础URL")
+    # 旧的 --thumbnail 参数定义（将被移除或注释掉）
+    # parser.add_argument(
+    #     "--thumbnail", action="store_true", help="将第一张图片设置为类别缩略图"
+    # )
+    
+    # 将 thumbnail 的默认值设为 True
+    parser.set_defaults(thumbnail=True)
+    # 添加 --no-thumbnail 标志，如果使用此标志，则 thumbnail 会被设为 False
     parser.add_argument(
-        "--thumbnail", action="store_true", help="将第一张图片设置为类别缩略图"
+        "--no-thumbnail",
+        dest="thumbnail",  # 确保它作用于 args.thumbnail
+        action="store_false",
+        help="不将第一张图片设置为类别缩略图 (默认启用缩略图设置)"
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="显示详细日志")
     parser.add_argument("--dry-run", action="store_true", help="仅测试，不实际上传")
