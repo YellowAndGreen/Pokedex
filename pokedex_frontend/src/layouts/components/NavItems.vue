@@ -28,7 +28,8 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
   />
   <VerticalNavLink
     :item="{
-      title: 'Settings',
+      title: 'Statistics',
+      to: '/statistics',
       icon: 'ri-settings-line',
     }"
   />

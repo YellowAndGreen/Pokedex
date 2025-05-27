@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { getCategories, API_BASE_URL } from '@/services/apiService' // getImages is no longer needed here
-import type { CategoryRead } from '@/types' // ImageRead is no longer needed here
+import type { CategoryRead, ImageRead } from '@/types' // Removed TagRead as it's not defined as a separate type
+import { useCategoryStore } from '@/store/categoryStore'
+import { useImageStore } from '@/store/imageStore' // 引入 imageStore
+import placeholderImage from '@/assets/images/logo.svg'
+import ImageGalleryDialog from '@/components/ImageGalleryDialog.vue' // 引入对话框组件
 
 // CategoryWithDisplayInfo is no longer needed, CategoryRead now has all required fields.
 
@@ -10,14 +14,20 @@ interface ExtendedCategory extends CategoryRead {
   isExpanded: boolean;
   randomBorderColorHex: string;
   randomBorderColorRGB: string;
+  // images?: ImageRead[] //  将不再直接在 category 中存储图片
 }
+
+const categoryStore = useCategoryStore()
+const imageStore = useImageStore() // 初始化 imageStore
 
 const categories = ref<ExtendedCategory[]>([]) // Use ExtendedCategory
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
-// Placeholder image if no thumbnail is available
-const placeholderImage = '/placeholder-image.png' // Make sure you have this image in your public folder or update the path
+// 对话框相关状态
+const isGalleryDialogVisible = ref(false)
+const selectedCategoryName = ref('')
+const selectedCategoryImages = ref<Array<{ id: string, url: string, title?: string, description?: string, tags?: string[] }>>([])
 
 // Color palette for random border colors - changed to deeper pastel colors
 const colorPalette = [
@@ -55,36 +65,36 @@ const formatDateManually = (dateString?: string | null): string | null => {
   }
 };
 
+const generateRandomColor = () => {
+  const r = Math.floor(Math.random() * 200) 
+  const g = Math.floor(Math.random() * 200)
+  const b = Math.floor(Math.random() * 200)
+
+  return {
+    hex: `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`,
+    rgb: `${r},${g},${b}`,
+  }
+}
+
 onMounted(async () => {
+  isLoading.value = true
+  error.value = null
   try {
-    isLoading.value = true
-    const fetchedCategories = await getCategories(0, 50) // Fetch categories
-
-    categories.value = fetchedCategories.map(category => {
-      let displayImageUrl: string | null = null
-      if (category.thumbnail_url) {
-        displayImageUrl = category.thumbnail_url.startsWith('http') || category.thumbnail_url.startsWith('/')
-          ? category.thumbnail_url
-          : `${API_BASE_URL}${category.thumbnail_url}`
-      }
-
-      const hexColor = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-      const rgbColorString = hexToRgbString(hexColor);
+    await categoryStore.fetchCategories()
+    categories.value = categoryStore.categories.map(cat => {
+      const colors = generateRandomColor()
 
       return {
-        ...category,
-        thumbnail_url: displayImageUrl || placeholderImage, 
-        isExpanded: false, // Categories start collapsed
-        randomBorderColorHex: hexColor,
-        randomBorderColorRGB: rgbColorString,
+        ...cat,
+        randomBorderColorHex: colors.hex,
+        randomBorderColorRGB: colors.rgb,
+        isExpanded: false,
       }
     })
-
-    error.value = null
   }
-  catch (e: any) {
-    console.error('Failed to fetch categories:', e)
-    error.value = e.message || 'An unknown error occurred while fetching categories.'
+  catch (err: any) {
+    console.error('Failed to load categories:', err)
+    error.value = err.message || 'Failed to load categories. Please try again later.'
     categories.value = []
   }
   finally {
@@ -98,11 +108,41 @@ const toggleExpansion = (category: ExtendedCategory) => {
 };
 
 // 处理查看更多图片的操作
-const handleViewMoreImages = (category: ExtendedCategory) => {
-  // 这里暂时为空函数，将来可以添加查看图片的逻辑
-  console.log('View more images for category:', category.name);
-  // 未来可以添加打开模态框、导航到详情页等操作
-};
+const handleViewMoreImages = async (category: ExtendedCategory) => {
+  selectedCategoryName.value = category.name
+  try {
+    await imageStore.fetchImages(0, 50, category.id) 
+    selectedCategoryImages.value = imageStore.images.map(img => {
+      let parsedTags: string[] = []
+      if (img.tags) {
+        try {
+          const tagsArray = JSON.parse(img.tags)
+          if (Array.isArray(tagsArray)) {
+            parsedTags = tagsArray.filter(tag => typeof tag === 'string')
+          }
+        }
+        catch (e) {
+          parsedTags = img.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
+        }
+      }
+
+      return {
+        id: img.id,
+        url: img.image_url, // Ensure API provides this, removed placeholder fallback
+        title: img.title || 'Untitled Image',
+        description: img.description || 'No description.',
+        tags: parsedTags,
+      }
+    })
+    isGalleryDialogVisible.value = true
+  }
+  catch (err) {
+    console.error('Error fetching images for category:', category.name, err)
+    error.value = `Failed to load images for ${category.name}.`
+    selectedCategoryImages.value = [] 
+    isGalleryDialogVisible.value = true 
+  }
+}
 </script>
 
 <template>
@@ -200,50 +240,44 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
             </div>
 
             <div class="px-4 pb-4">
-              <h5 class="text-h5 mb-1 text-left">{{ category.name }}</h5>
-              <p class="text-body-2 text-medium-emphasis mb-2 text-left">
-                {{ category.description || 'No description available.' }}
+              <div class="d-flex justify-space-between align-center mb-2">
+                <h6 class="text-h6">
+                  {{ category.name }}
+                </h6>
+                <!-- Temporarily removed image_count as it's not in CategoryRead -->
+                <!-- <VChip
+                  label
+                  size="small"
+                  class="text-xs"
+                  :color="category.randomBorderColorHex"
+                  variant="tonal"
+                >
+                  {{ category.image_count }} Images
+                </VChip> -->
+              </div>
+
+              <p
+                class="text-body-2 text-medium-emphasis mb-3"
+                style="min-height: 40px;"
+              >
+                {{ category.description ? category.description.substring(0, 60) + (category.description.length > 60 ? '...' : '') : 'No description.' }}
               </p>
 
               <VExpandTransition>
-                <div v-show="category.isExpanded" class="expanded-content-area">
-                  <div class="d-flex justify-space-between my-4 gap-4 flex-wrap">
-                    <div v-if="category.updated_at" class="d-flex align-center gap-x-2 mx-auto">
-                      <VAvatar 
-                        variant="tonal" 
-                        rounded 
-                        :style="{ color: category.randomBorderColorHex }"
-                      >
-                        <VIcon icon="ri-calendar-line" />
-                      </VAvatar>
-                      <div>
-                        <div class="text-body-1 text-high-emphasis">{{ formatDateManually(category.updated_at) }}</div>
-                        <div class="text-caption text-medium-emphasis">更新</div>
-                      </div>
-                    </div>
-
-                    <div v-if="category.created_at" class="d-flex align-center gap-x-2 mx-auto">
-                      <VAvatar 
-                        variant="tonal" 
-                        rounded 
-                        :style="{ color: category.randomBorderColorHex }"
-                      >
-                        <VIcon icon="ri-time-line" />
-                      </VAvatar>
-                      <div>
-                        <div class="text-body-1 text-high-emphasis">{{ formatDateManually(category.created_at) }}</div>
-                        <div class="text-caption text-medium-emphasis">创建</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <VBtn 
-                    block 
+                <div v-show="category.isExpanded">
+                  <VDivider class="my-3" />
+                  <p class="text-caption text-disabled">
+                    <strong>ID:</strong> {{ category.id }}<br>
+                    <strong>Created:</strong> {{ new Date(category.created_at).toLocaleDateString() }}<br>
+                    <strong>Updated:</strong> {{ new Date(category.updated_at).toLocaleDateString() }}
+                  </p>
+                  <VBtn
+                    block
                     class="mt-4"
                     variant="flat"
-                    :style="{ 
+                    :style="{
                       backgroundColor: category.randomBorderColorHex,
-                      color: 'white'
+                      color: 'white',
                     }"
                     @click.stop="handleViewMoreImages(category)"
                   >
@@ -256,6 +290,14 @@ const handleViewMoreImages = (category: ExtendedCategory) => {
         </VCard>
       </VCol>
     </VRow>
+
+    <!-- Image Gallery Dialog -->
+    <ImageGalleryDialog
+      :is-visible="isGalleryDialogVisible"
+      :category-name="selectedCategoryName"
+      :images="selectedCategoryImages"
+      @close="isGalleryDialogVisible = false"
+    />
   </VContainer>
 </template>
 

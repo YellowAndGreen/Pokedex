@@ -8,6 +8,10 @@ export const routes = [
         path: 'dashboard',
         component: () => import('@/pages/dashboard.vue'),
       },
+      {
+        path: 'statistics',
+        component: () => import('@/pages/statistics.vue'),
+      },
     ],
   },
   {
