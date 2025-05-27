@@ -140,6 +140,7 @@ def test_upload_invalid_file(client):
 ```bash
 # 运行所有测试并生成覆盖率报告
 export PYTHONPATH=$PYTHONPATH:/home/xu/playground/illustrated-photo-library
+export PYTHONPATH=$PYTHONPATH:/home/xu/playground/illustrated-photo-library/pokedex_backend
 pytest tests/backend/ --cov=app --cov-report=html -v
 ```
 
