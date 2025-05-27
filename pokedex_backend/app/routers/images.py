@@ -8,6 +8,7 @@ from pathlib import Path
 import asyncio
 import aiofiles.os as aio_os
 import uuid
+import exifread
 
 from fastapi import (
     APIRouter,
@@ -126,6 +127,28 @@ async def upload_image(
             f"警告: 缩略图生成发生意外错误对于文件 {stored_filename}. 图片仍会保存但无缩略图。"
         )
 
+    # 新增：提取 EXIF 信息
+    exif_data = {}
+    try:
+        with open(image_absolute_path, "rb") as f:
+            tags_exif = exifread.process_file(
+                f, details=False
+            )  # details=False 避免提取过多信息
+            if tags_exif:
+                exif_data = {
+                    str(key): str(value)
+                    for key, value in tags_exif.items()
+                    if key
+                    not in (
+                        "JPEGThumbnail",
+                        "TIFFThumbnail",
+                        "Filename",
+                        "EXIF MakerNote",
+                    )  # 排除一些不需要或可能很大的字段
+                }
+    except Exception as e:
+        print(f"提取 EXIF 信息时发生错误: {e}")  # 记录错误，但不中断流程
+
     # 5. 创建数据库记录 for Image
     # 构建 image_create_data 时，使用 thumbnail_absolute_path 计算 relative_thumbnail_path
     calculated_relative_thumbnail_path = (
@@ -152,6 +175,11 @@ async def upload_image(
         tags=tags,
         category_id=category_id,
     )
+    # 将EXIF数据添加到image_create_data的file_metadata中
+    if exif_data:
+        image_create_data.file_metadata = (
+            exif_data  # 这里假设ImageCreate模型中已经有file_metadata字段
+        )
 
     db_image = image_crud.create_image(
         session=session, image_create_data=image_create_data

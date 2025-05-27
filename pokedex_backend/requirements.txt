@@ -12,3 +12,4 @@ lark
 httpx
 pytest-cov
 requests
+exifread
