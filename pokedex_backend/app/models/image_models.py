@@ -15,6 +15,33 @@ from app.core.config import settings
 # from app.models.category_models import CategoryRead
 
 
+class ExifData(SQLModel):
+    """图片的详细EXIF元数据"""
+
+    make: Optional[str] = Field(default=None, description="相机制造商")
+    model: Optional[str] = Field(default=None, description="相机型号")
+    lens_make: Optional[str] = Field(default=None, description="镜头制造商")
+    bits_per_sample: Optional[str] = Field(
+        default=None, description="每像素位数"
+    )  # 例如 '8 8 8'
+    date_time_original: Optional[str] = Field(
+        default=None, description="原始拍摄日期时间"
+    )
+    exposure_time: Optional[str] = Field(default=None, description="曝光时间")
+    f_number: Optional[str] = Field(default=None, description="F值")
+    exposure_program: Optional[str] = Field(default=None, description="曝光程序")
+    iso_speed_rating: Optional[str] = Field(default=None, description="ISO速度")
+    focal_length: Optional[str] = Field(default=None, description="焦距")
+    lens_specification: Optional[str] = Field(default=None, description="镜头规格")
+    lens_model: Optional[str] = Field(default=None, description="镜头型号")
+    exposure_mode: Optional[str] = Field(default=None, description="曝光模式")
+    cfa_pattern: Optional[str] = Field(
+        default=None, description="CFA模式"
+    )  # 注意：这可能是二进制数据，转为字符串可能需要特定处理
+    color_space: Optional[str] = Field(default=None, description="色彩空间")
+    white_balance: Optional[str] = Field(default=None, description="白平衡")
+
+
 class ImageBase(SQLModel):
     """图片基础模型 (大部分字段由后端在文件处理后填充)
     文档建议的 ImageBase 字段已调整并整合到这里或具体的 Read/DB 模型中。
@@ -36,6 +63,7 @@ class ImageBase(SQLModel):
     description: Optional[str] = Field(None, max_length=500, description="图片描述")
     tags: Optional[str] = Field(None, description="逗号分隔的标签字符串或JSON字符串")
     # category_id 将在 Image (DB model) 和 ImageRead 中定义，并使用 uuid.UUID
+    # exif_info 将在 Image (DB model), ImageCreate 和 ImageRead 中定义
 
 
 class Image(ImageBase, table=True):
@@ -59,6 +87,10 @@ class Image(ImageBase, table=True):
         default={},
         sa_column=Column(JSON),
         description="图片文件元数据，可包含例如 EXIF 信息",
+    )
+
+    exif_info: Optional[ExifData] = Field(
+        default=None, sa_column=Column(JSON), description="结构化的EXIF信息"
     )
 
     category_id: uuid.UUID = Field(
@@ -90,6 +122,7 @@ class ImageCreate(SQLModel):
     file_metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="图片文件元数据，例如 EXIF 信息"
     )
+    exif_info: Optional[ExifData] = Field(default=None, description="结构化的EXIF信息")
 
 
 class ImageRead(ImageBase):
@@ -100,6 +133,7 @@ class ImageRead(ImageBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     file_metadata: Optional[Dict[str, Any]] = None
+    exif_info: Optional[ExifData] = None
 
     @computed_field
     @property

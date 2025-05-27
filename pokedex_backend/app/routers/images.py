@@ -23,7 +23,7 @@ from fastapi import (
 from sqlmodel import Session
 
 from app.database import get_session
-from app.models import ImageCreate, ImageRead, ImageUpdate, Category
+from app.models import ImageCreate, ImageRead, ImageUpdate, Category, ExifData
 from app.crud import image_crud, category_crud
 from app.services.file_storage_service import FileStorageService  # 假设服务已实现
 from app.services.image_processing_service import (
@@ -128,14 +128,16 @@ async def upload_image(
         )
 
     # 新增：提取 EXIF 信息
-    exif_data = {}
+    exif_data_raw = {}
+    parsed_exif_object: Optional[ExifData] = None
     try:
         with open(image_absolute_path, "rb") as f:
             tags_exif = exifread.process_file(
                 f, details=False
             )  # details=False 避免提取过多信息
             if tags_exif:
-                exif_data = {
+                # 临时存储原始提取的、经过基本过滤的EXIF数据，用于 file_metadata
+                exif_data_raw = {
                     str(key): str(value)
                     for key, value in tags_exif.items()
                     if key
@@ -144,8 +146,52 @@ async def upload_image(
                         "TIFFThumbnail",
                         "Filename",
                         "EXIF MakerNote",
-                    )  # 排除一些不需要或可能很大的字段
+                    )
                 }
+
+                # Helper function to safely get string value of a tag or None
+                def get_tag_str_value(tag_key: str) -> Optional[str]:
+                    tag_value = tags_exif.get(tag_key)
+                    return str(tag_value) if tag_value is not None else None
+
+                def get_alternative_tag_str_value(
+                    key1: str, key2: str
+                ) -> Optional[str]:
+                    val = tags_exif.get(key1)
+                    if val is not None:
+                        return str(val)
+                    val = tags_exif.get(key2)
+                    return str(val) if val is not None else None
+
+                # Structured EXIF data for exif_info field
+                parsed_exif_object = ExifData(
+                    make=get_tag_str_value("Image Make"),  # Camera Make
+                    model=get_tag_str_value("Image Model"),  # Camera Model
+                    lens_make=get_tag_str_value(
+                        "Image LensMake"
+                    ),  # Populate new lens_make field
+                    bits_per_sample=get_alternative_tag_str_value(
+                        "Image BitsPerSample", "EXIF BitsPerSample"
+                    ),
+                    date_time_original=get_tag_str_value("EXIF DateTimeOriginal"),
+                    exposure_time=get_tag_str_value("EXIF ExposureTime"),
+                    f_number=get_tag_str_value("EXIF FNumber"),
+                    exposure_program=get_tag_str_value("EXIF ExposureProgram"),
+                    iso_speed_rating=get_tag_str_value("EXIF ISOSpeedRatings"),
+                    focal_length=get_tag_str_value("EXIF FocalLength"),
+                    lens_specification=get_alternative_tag_str_value(
+                        "EXIF LensSpecification", "Image LensSpecification"
+                    ),
+                    lens_model=get_alternative_tag_str_value(
+                        "EXIF LensModel", "Image LensModel"
+                    ),
+                    exposure_mode=get_tag_str_value("EXIF ExposureMode"),
+                    cfa_pattern=get_tag_str_value(
+                        "EXIF CFAPattern"
+                    ),  # Consider adding "EXIF CVAPattern" if needed
+                    color_space=get_tag_str_value("EXIF ColorSpace"),
+                    white_balance=get_tag_str_value("EXIF WhiteBalance"),
+                )
     except Exception as e:
         print(f"提取 EXIF 信息时发生错误: {e}")  # 记录错误，但不中断流程
 
@@ -157,9 +203,6 @@ async def upload_image(
         and settings.thumbnail_storage_root
         and thumbnail_absolute_path.exists()
         else None
-    )
-    print(
-        f"thumbnail_absolute_path: {thumbnail_absolute_path}, settings.thumbnail_storage_root: {settings.thumbnail_storage_root}, thumbnail_absolute_path.exists(): {thumbnail_absolute_path.exists()}, calculated_relative_thumbnail_path: {calculated_relative_thumbnail_path}"
     )
     image_create_data = ImageCreate(
         title=title,
@@ -174,21 +217,17 @@ async def upload_image(
         description=description,
         tags=tags,
         category_id=category_id,
+        file_metadata=(
+            exif_data_raw if exif_data_raw else None
+        ),  # 将原始提取的EXIF存入 file_metadata
+        exif_info=parsed_exif_object,  # 将结构化的 ExifData 实例存入 exif_info
     )
-    # 将EXIF数据添加到image_create_data的file_metadata中
-    if exif_data:
-        image_create_data.file_metadata = (
-            exif_data  # 这里假设ImageCreate模型中已经有file_metadata字段
-        )
 
     db_image = image_crud.create_image(
         session=session, image_create_data=image_create_data
     )
 
     # 6. 如果需要，设置类别缩略图
-    print(
-        f"set_as_category_thumbnail: {set_as_category_thumbnail}, db_image.relative_thumbnail_path: {db_image.relative_thumbnail_path}, db_category: {db_category}"
-    )
     if set_as_category_thumbnail and db_image.relative_thumbnail_path and db_category:
         db_category.thumbnail_path = db_image.relative_thumbnail_path
         session.add(db_category)

@@ -12,6 +12,7 @@ from app.models import (
     Image,
     ImageCreate,
     ImageUpdate,
+    ExifData,
 )  # ImageCreate 通常在内部使用
 from app.services.file_storage_service import FileStorageService
 from app.core.config import settings
@@ -29,7 +30,24 @@ def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
     返回:
         Image: 创建成功后的图片对象。
     """
-    db_image = Image.model_validate(image_create_data)
+    # 将 Pydantic 模型 (ImageCreate) 转换为字典，以便创建 SQLAlchemy 模型 (Image)
+    # exclude_unset=True 仅包含显式设置的字段
+    image_data_for_db = image_create_data.model_dump(exclude_unset=True)
+
+    # 关键修复：如果 exif_info 字段存在并且是 ExifData 的实例，
+    # 将其转换为字典形式，以便 SQLAlchemy 的 JSON 类型可以正确处理。
+    # SQLModel 通常会处理这个，但这里显式转换以解决序列化问题。
+    if "exif_info" in image_data_for_db and isinstance(
+        image_data_for_db["exif_info"], ExifData
+    ):
+        image_data_for_db["exif_info"] = image_data_for_db["exif_info"].model_dump(
+            mode="json"
+        )
+
+    # 如果 file_metadata 也是一个Pydantic模型实例（虽然当前定义为Dict），类似处理可能也需要
+    # 但当前 file_metadata 已经是在路由中构造为字典，所以应该没问题
+
+    db_image = Image(**image_data_for_db)
     session.add(db_image)
     session.commit()
     session.refresh(db_image)

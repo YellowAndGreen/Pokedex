@@ -169,8 +169,40 @@ def test_upload_image(created_category_id: str, temp_image_file: Path):
             len(relative_thumbnail_path.split("/")) >= 1
         )  # 至少有一个文件名，可能是多级目录
 
+        # 新增：检查 EXIF 相关字段
+        assert (
+            "file_metadata" in image_data
+        ), "file_metadata field should exist in response"
+        # file_metadata 可以是字典（可能有内容，也可能为空），或者在没有提取到任何元数据时为 None
+        assert image_data["file_metadata"] is None or isinstance(
+            image_data["file_metadata"], dict
+        ), "file_metadata should be a dictionary or None"
+
+        assert "exif_info" in image_data, "exif_info field should exist in response"
+        exif_info = image_data["exif_info"]
+        # exif_info 可以是包含结构化EXIF数据的字典，或者在没有EXIF数据或提取失败时为 None
+        assert exif_info is None or isinstance(
+            exif_info, dict
+        ), "exif_info should be a dictionary or None"
+
+        if exif_info is not None:
+            # 如果 exif_info 存在，可以检查一些预期的键（这些键的值可能仍然是None）
+            # 这取决于测试图片是否真的包含这些EXIF数据
+            expected_exif_keys = [
+                "make",
+                "model",
+                "date_time_original",
+                "exposure_time",
+                "f_number",
+                "iso_speed_rating",
+                "focal_length",
+            ]
+            for key in expected_exif_keys:
+                assert key in exif_info, f"Expected key '{key}' in exif_info dictionary"
+            # 示例：如果确定测试图片有相机型号
+            # assert exif_info.get("model") is not None, "Camera model should be present if test image has it"
+
         # 原有的 image_url 和 thumbnail_url 检查 (如果它们仍然在响应中)
-        # 这些可能是基于相对路径和配置中的基础URL构建的完整URL
         if "image_url" in image_data:
             assert image_data["image_url"].endswith(
                 relative_file_path

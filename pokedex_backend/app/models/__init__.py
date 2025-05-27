@@ -17,7 +17,14 @@ from .category_models import (
     CategoryReadWithImages,
     CategoryUpdate,
 )
-from .image_models import Image, ImageBase, ImageCreate, ImageRead, ImageUpdate
+from .image_models import (
+    Image,
+    ImageBase,
+    ImageCreate,
+    ImageRead,
+    ImageUpdate,
+    ExifData,
+)
 from .species_info_models import (
     Species,
     SpeciesBase,
@@ -32,6 +39,7 @@ from .species_info_models import (
 # 这对于使用字符串类型提示（如 List["Image"]）定义的关系至关重要
 Category.model_rebuild()
 Image.model_rebuild()
+ExifData.model_rebuild()
 CategoryReadWithImages.model_rebuild()
 ImageRead.model_rebuild()
 Species.model_rebuild()
@@ -49,6 +57,7 @@ __all__ = [
     "ImageCreate",
     "ImageRead",
     "ImageUpdate",
+    "ExifData",
     "Species",
     "SpeciesBase",
     "SpeciesCreate",
