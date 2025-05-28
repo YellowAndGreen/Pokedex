@@ -61,6 +61,7 @@ def create_application() -> FastAPI:
                     "http://localhost:3000",
                     "http://localhost:8080",
                     "http://127.0.0.1:5173",
+                    "*",
                 ]
                 # 保留此开发环境的默认设置警告
                 print(

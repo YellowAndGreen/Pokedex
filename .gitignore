@@ -125,3 +125,7 @@ pokedex_frontend/pnpm-debug.log*
 pokedex_frontend/.vscode/
 pokedex_frontend/.idea/
 node_modules
+
+pokedex-image/
+pokedex_backend/app/static
+pokedex.db
