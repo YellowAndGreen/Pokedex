@@ -1,90 +1,58 @@
 <template>
   <VRow class="py-5 match-height">
-    <VCol
-      cols="12"
-      md="8"
-      sm="6"
-      class="border-e"
-    >
+    <VCol cols="12" md="8" sm="6" class="border-e">
       <div class="pe-3">
         <h5 class="text-h5 text-high-emphasis mb-1">
-          Welcome back, Felecia 👋🏻
+          Welcome back 👋🏻
         </h5>
-        <div
-          class="text-wrap text-medium-emphasis mb-4"
-          style="max-inline-size: 400px;"
-        >
+        <div class="text-wrap text-medium-emphasis mb-4" style="max-inline-size: 400px;">
           Your progress this week is Awesome. let's keep it up and get a lot of points reward!
         </div>
         <div class="d-flex justify-space-between flex-wrap gap-6 flex-column flex-md-row">
           <div>
             <div class="d-flex">
-              <VAvatar
-                color="primary"
-                rounded
-                variant="tonal"
-                class="text-primary me-4"
-                style="width: 54px; height: 54px;"
-              >
-                <VIcon
-                  size="32"
-                  icon="ri-time-line"
-                />
+              <VAvatar color="primary" rounded variant="tonal" class="text-primary me-4"
+                style="width: 54px; height: 54px;">
+                <VIcon size="32" icon="ri-time-line" />
               </VAvatar>
               <div>
                 <h6 class="text-h6 text-medium-emphasis">
-                  Hours Spent
+                  2025活跃天数
                 </h6>
                 <h4 class="text-h4 font-weight-medium text-primary">
-                  34h
+                  43天
                 </h4>
               </div>
             </div>
           </div>
           <div>
             <div class="d-flex">
-              <VAvatar
-                color="info"
-                rounded
-                variant="tonal"
-                class="text-primary me-4"
-                style="width: 54px; height: 54px;"
-              >
-                <VIcon
-                  size="32"
-                  icon="ri-test-tube-line"
-                />
+              <VAvatar color="info" rounded variant="tonal" class="text-primary me-4"
+                style="width: 54px; height: 54px;">
+                <VIcon size="32" icon="ri-test-tube-line" />
               </VAvatar>
               <div>
                 <h6 class="text-h6 text-medium-emphasis">
-                  Test Results
+                  总鸟种数
                 </h6>
                 <h4 class="text-h4 font-weight-medium text-info">
-                  82%
+                  282
                 </h4>
               </div>
             </div>
           </div>
           <div>
             <div class="d-flex">
-              <VAvatar
-                color="warning"
-                rounded
-                variant="tonal"
-                class="text-primary me-4"
-                style="width: 54px; height: 54px;"
-              >
-                <VIcon
-                  size="32"
-                  icon="ri-award-line"
-                />
+              <VAvatar color="warning" rounded variant="tonal" class="text-primary me-4"
+                style="width: 54px; height: 54px;">
+                <VIcon size="32" icon="ri-award-line" />
               </VAvatar>
               <div>
                 <h6 class="text-h6 text-medium-emphasis">
-                  Course Completed
+                  报告数量
                 </h6>
                 <h4 class="text-h4 font-weight-medium text-warning">
-                  14
+                  65
                 </h4>
               </div>
             </div>
@@ -92,11 +60,7 @@
         </div>
       </div>
     </VCol>
-    <VCol
-      cols="12"
-      md="4"
-      sm="6"
-    >
+    <VCol cols="12" md="4" sm="6">
       <div class="d-flex justify-space-between align-center">
         <div class="d-flex flex-column ps-3">
           <h5 class="text-h5 mb-1 text-no-wrap">
@@ -109,20 +73,15 @@
             231<span class="text-medium-emphasis">h</span> 14<span class="text-medium-emphasis">m</span>
           </h4>
           <div>
-            <VChip
-              color="success"
-              density="default"
-              label
-              size="small"
-              variant="tonal"
-            >
+            <VChip color="success" density="default" label size="small" variant="tonal">
               +18.4%
             </VChip>
           </div>
         </div>
         <div>
           <!-- Placeholder for Donut Chart -->
-          <div style="min-height: 132.8px; width: 150px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center;">
+          <div
+            style="min-height: 132.8px; width: 150px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center;">
             Donut Chart
           </div>
         </div>
@@ -130,177 +89,137 @@
     </VCol>
   </VRow>
 
-  <VRow>
-    <VCol
-      v-for="(data, index) in statisticsData"
-      :key="index"
-      cols="12"
-      md="3"
-      sm="6"
-    >
-      <VCard
-        class="logistics-card-statistics cursor-pointer"
-        :style="{ 'border-block-end-color': `rgba(var(--v-theme-${data.color}),0.7)` }"
-        hover
-      >
-        <VCardText>
-          <div class="d-flex align-center gap-x-4 mb-2">
-            <VAvatar
-              :color="data.color"
-              rounded
-              size="40"
-              variant="tonal"
-            >
-              <VIcon
-                :icon="data.icon"
-                size="24"
-              />
-            </VAvatar>
-            <h4 class="text-h4">
-              {{ data.value }}
-            </h4>
-          </div>
-          <h6 class="text-h6 font-weight-regular">
-            {{ data.title }}
-          </h6>
-          <div class="d-flex align-center">
-            <div class="text-body-1 font-weight-medium me-2">
-              {{ data.change }}
-            </div>
-            <span class="text-sm text-disabled">than last week</span>
-          </div>
-        </VCardText>
-      </VCard>
-    </VCol>
-  </VRow>
-
   <!-- New Row for Shipment Statistics and Transactions -->
-  <VRow
-    class="mt-6"
-    match-height
-  >
+  <VRow class="mt-6" match-height>
     <!-- Shipment Statistics Card -->
-    <VCol
-      cols="12"
-      md="6"
-    >
+    <VCol cols="12" md="8">
       <VCard>
         <VCardItem>
           <VCardTitle>Shipment statistics</VCardTitle>
           <VCardSubtitle>Total number of deliveries 23.8k</VCardSubtitle>
           <template #append>
             <div class="v-btn-group v-btn-group--divided v-theme--light v-btn-group--density-compact">
-              <VBtn
-                variant="outlined"
-                style="height: auto;"
-                color="primary"
-              >
+              <VBtn variant="outlined" style="height: auto;" color="primary">
                 January
               </VBtn>
-              <VBtn
-                variant="outlined"
-                style="height: auto;"
-                color="primary"
-                icon
-              >
+              <VBtn variant="outlined" style="height: auto;" color="primary" icon>
                 <VIcon icon="ri-arrow-down-s-line" />
               </VBtn>
             </div>
           </template>
         </VCardItem>
         <VCardText>
-          <VueApexCharts
-            type="bar"
-            :options="shipmentChartOptions"
-            :series="shipmentChartSeries"
-            height="320"
-          />
+          <VueApexCharts type="bar" :options="shipmentChartOptions" :series="shipmentChartSeries" height="320" />
         </VCardText>
       </VCard>
     </VCol>
 
     <!-- New Cards Column -->
-    <VCol
-      cols="12"
-      md="6"
-    >
-      <VRow match-height>
-        <!-- Total Sales Donut Chart Card -->
-        <VCol cols="12">
-          <VCard class="overflow-visible">
-            <VCardText class="d-flex justify-space-between align-center gap-3">
-              <div>
-                <h5 class="text-h5 mb-1">
-                  Total Sales
-                </h5>
-                <div class="text-body-1 mb-3">
-                  Calculated in last 7 days
-                </div>
-                <div class="d-flex align-center">
-                  <h4 class="text-h4">
-                    $25,980
-                  </h4>
-                  <div class="d-flex align-center">
-                    <VIcon
-                      icon="ri-arrow-up-s-line"
-                      color="success"
-                      size="24"
-                    />
-                    <span class="text-body-1 text-success">15.6%</span>
-                  </div>
-                </div>
-              </div>
-              <VueApexCharts
-                type="donut"
-                :options="totalSalesDonutChartOptions"
-                :series="totalSalesDonutChartSeries"
-                height="100.75"
-                width="110"
-              />
-            </VCardText>
-          </VCard>
-        </VCol>
+    <VCol cols="12" md="4">
+      <div class="v-col-md-12 v-col-lg-12 v-col-12">
+        <div class="v-card v-theme--light v-card--density-default v-card--variant-elevated"
+          style="background-color: rgb(22, 177, 255); color: rgb(255, 255, 255); caret-color: rgb(255, 255, 255);">
+          <!---->
+          <div class="v-card__loader">
+            <div class="v-progress-linear v-theme--light v-locale--is-ltr" role="progressbar" aria-hidden="true"
+              aria-valuemin="0" aria-valuemax="100" style="top: 0px; height: 0px; --v-progress-linear-height: 2px;">
+              <!---->
+              <div class="v-progress-linear__background bg-primary"></div>
+              <div class="v-progress-linear__buffer bg-primary" style="width: 0%;"></div>
+              <div class="v-progress-linear__indeterminate">
+                <div class="v-progress-linear__indeterminate long bg-primary"></div>
+                <div class="v-progress-linear__indeterminate short bg-primary"></div>
+              </div><!---->
+            </div>
+          </div><!----><!---->
+          <div class="v-card-item">
+            <div class="v-card-item__prepend"><i class="ri-twitter-line v-icon notranslate v-theme--light text-white"
+                aria-hidden="true" style="font-size: 1.9rem; height: 1.9rem; width: 1.9rem;"></i></div>
+            <div class="v-card-item__content"><!----><!---->
+              <div class="v-card-title text-white">Twitter Card</div>
+            </div><!---->
+          </div>
+          <div class="v-card-text">
+            <p class="clamp-text text-white mb-0">"Turns out semicolon-less style is easier and safer in TS because most
+              gotcha edge cases are type invalid as well."</p>
+          </div>
+          <div class="v-card-text d-flex justify-space-between align-center flex-wrap">
+            <div class="text-no-wrap">
+              <div class="v-avatar v-theme--light v-avatar--density-default v-avatar--variant-flat"
+                style="width: 34px; height: 34px;">
+                <div class="v-responsive v-img" aria-label="">
+                  <div class="v-responsive__sizer" style="padding-bottom: 100%;"></div><img
+                    class="v-img__img v-img__img--cover" src="https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31esupog4me605ogjm7g40vt2421qqeg?imageView2/2/w/360/format/webp" alt="avatar"
+                    style=""><!----><!----><!----><!----><!---->
+                </div><!----><span class="v-avatar__underlay"></span>
+              </div><span class="text-white ms-2">Mary Vaughn</span>
+            </div>
+            <div class="d-flex align-center"><button type="button"
+                class="v-btn v-btn--icon v-theme--light text-white v-btn--density-default v-btn--size-default v-btn--variant-text me-1"><span
+                  class="v-btn__overlay"></span><span class="v-btn__underlay"></span><!----><span class="v-btn__content"
+                  data-no-activator=""><i class="ri-heart-fill v-icon notranslate v-theme--light v-icon--size-default"
+                    aria-hidden="true"></i></span><!----><!----></button><span
+                class="text-body-2 text-white me-4">1.2k</span><button type="button"
+                class="v-btn v-btn--icon v-theme--light text-white v-btn--density-default v-btn--size-default v-btn--variant-text me-1"><span
+                  class="v-btn__overlay"></span><span class="v-btn__underlay"></span><!----><span class="v-btn__content"
+                  data-no-activator=""><i class="ri-share-line v-icon notranslate v-theme--light v-icon--size-default"
+                    aria-hidden="true"></i></span><!----><!----></button><span class="text-body-2 text-white">80</span>
+            </div>
+          </div><!----><!----><span class="v-card__underlay"></span>
+        </div>
+      </div>
+      <div class="v-col-md-12 v-col-lg-12 v-col-12">
+        <div class="v-card v-theme--light v-card--density-default v-card--variant-elevated"
+          style="background-color: rgb(59, 89, 152); color: rgb(255, 255, 255); caret-color: rgb(255, 255, 255);">
+          <!---->
+          <div class="v-card__loader">
+            <div class="v-progress-linear v-theme--light v-locale--is-ltr" role="progressbar" aria-hidden="true"
+              aria-valuemin="0" aria-valuemax="100" style="top: 0px; height: 0px; --v-progress-linear-height: 2px;">
+              <!---->
+              <div class="v-progress-linear__background bg-primary"></div>
+              <div class="v-progress-linear__buffer bg-primary" style="width: 0%;"></div>
+              <div class="v-progress-linear__indeterminate">
+                <div class="v-progress-linear__indeterminate long bg-primary"></div>
+                <div class="v-progress-linear__indeterminate short bg-primary"></div>
+              </div><!---->
+            </div>
+          </div><!----><!---->
+          <div class="v-card-item">
+            <div class="v-card-item__prepend"><i class="ri-facebook-circle-line v-icon notranslate v-theme--light text-white" aria-hidden="true" style="font-size: 1.9rem; height: 1.9rem; width: 1.9rem;"></i></div>
+            <div class="v-card-item__content"><!----><!---->
+              <div class="v-card-title text-white">Twitter Card</div>
+            </div><!---->
+          </div>
+          <div class="v-card-text">
+            <p class="clamp-text text-white mb-0">"Turns out semicolon-less style is easier and safer in TS because most
+              gotcha edge cases are type invalid as well."</p>
+          </div>
+          <div class="v-card-text d-flex justify-space-between align-center flex-wrap">
+            <div class="text-no-wrap">
+              <div class="v-avatar v-theme--light v-avatar--density-default v-avatar--variant-flat"
+                style="width: 34px; height: 34px;">
+                <div class="v-responsive v-img" aria-label="">
+                  <div class="v-responsive__sizer" style="padding-bottom: 100%;"></div><img
+                    class="v-img__img v-img__img--cover" src="https://sns-avatar-qc.xhscdn.com/avatar/1040g2jo31esupog4me605ogjm7g40vt2421qqeg?imageView2/2/w/360/format/webp" alt="avatar"
+                    style=""><!----><!----><!----><!----><!---->
+                </div><!----><span class="v-avatar__underlay"></span>
+              </div><span class="text-white ms-2">Mary Vaughn</span>
+            </div>
+            <div class="d-flex align-center"><button type="button"
+                class="v-btn v-btn--icon v-theme--light text-white v-btn--density-default v-btn--size-default v-btn--variant-text me-1"><span
+                  class="v-btn__overlay"></span><span class="v-btn__underlay"></span><!----><span class="v-btn__content"
+                  data-no-activator=""><i class="ri-heart-fill v-icon notranslate v-theme--light v-icon--size-default"
+                    aria-hidden="true"></i></span><!----><!----></button><span
+                class="text-body-2 text-white me-4">1.2k</span><button type="button"
+                class="v-btn v-btn--icon v-theme--light text-white v-btn--density-default v-btn--size-default v-btn--variant-text me-1"><span
+                  class="v-btn__overlay"></span><span class="v-btn__underlay"></span><!----><span class="v-btn__content"
+                  data-no-activator=""><i class="ri-share-line v-icon notranslate v-theme--light v-icon--size-default"
+                    aria-hidden="true"></i></span><!----><!----></button><span class="text-body-2 text-white">80</span>
+            </div>
+          </div><!----><!----><span class="v-card__underlay"></span>
+        </div>
+      </div>
 
-        <!-- Total Revenue Line Chart Card -->
-        <VCol cols="6">
-          <VCard>
-            <VCardText>
-              <h4 class="text-h4">
-                $35.4k
-              </h4>
-              <VueApexCharts
-                type="line"
-                :options="totalRevenueLineChartOptions"
-                :series="totalRevenueLineChartSeries"
-                height="110"
-              />
-              <h6 class="text-h6 text-center">
-                Total Revenue
-              </h6>
-            </VCardText>
-          </VCard>
-        </VCol>
-
-        <!-- Total Sales Radial Bar Chart Card -->
-        <VCol cols="6">
-          <VCard>
-            <VCardText>
-              <h4 class="text-h4">
-                135k
-              </h4>
-              <VueApexCharts
-                type="radialBar"
-                :options="totalSalesRadialChartOptions"
-                :series="totalSalesRadialChartSeries"
-                height="76"
-              />
-              <h6 class="text-h6 text-center mt-6">
-                Total sales
-              </h6>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
     </VCol>
   </VRow>
 </template>
@@ -653,4 +572,4 @@ const totalSalesRadialChartOptions = computed(() => {
   border-radius: 50%;
   margin-right: 8px;
 }
-</style> 
+</style>

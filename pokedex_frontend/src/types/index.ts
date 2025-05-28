@@ -68,6 +68,29 @@ export interface ImageCreateMetadata {
 }
 
 /**
+ * 定义图片的详细EXIF元数据
+ * 这个接口应该与后端 image_models.py 中的 ExifData 模型保持一致。
+ */
+export interface ExifData {
+  make?: string | null;
+  model?: string | null;
+  lens_make?: string | null;
+  bits_per_sample?: string | null; 
+  date_time_original?: string | null;
+  exposure_time?: string | null;
+  f_number?: string | null;
+  exposure_program?: string | null;
+  iso_speed_rating?: string | null;
+  focal_length?: string | null;
+  lens_specification?: string | null;
+  lens_model?: string | null;
+  exposure_mode?: string | null;
+  cfa_pattern?: string | null; 
+  color_space?: string | null;
+  white_balance?: string | null;
+}
+
+/**
  * 从 API 读取/返回图片信息时使用的数据模型。
  * 对应 OpenAPI schema: ImageRead
  */
@@ -86,6 +109,7 @@ export interface ImageRead {
   created_at: string;                // 创建时间戳 (ISO 8601 格式)
   updated_at: string | null;         // 最后更新时间戳 (openapi: string | null)
   file_metadata?: object | null;      // (openapi: object | null)
+  exif_info?: ExifData | null;       // 新增：结构化的EXIF信息
   image_url: string;                 // 查看完整图片的 URL (openapi: image_url, required)
   thumbnail_url: string | null;        // 缩略图的 URL (openapi: thumbnail_url, required, nullable)
 }

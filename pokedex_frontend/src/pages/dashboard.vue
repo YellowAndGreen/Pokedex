@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { getCategories, API_BASE_URL } from '@/services/apiService' // getImages is no longer needed here
-import type { CategoryRead, ImageRead } from '@/types' // Removed TagRead as it's not defined as a separate type
+import type { CategoryRead, ImageRead, ExifData } from '@/types' // Removed TagRead as it's not defined as a separate type
 import { useCategoryStore } from '@/store/categoryStore'
 import { useImageStore } from '@/store/imageStore' // 引入 imageStore
 import placeholderImage from '@/assets/images/logo.svg'
@@ -27,7 +27,7 @@ const error = ref<string | null>(null)
 // 对话框相关状态
 const isGalleryDialogVisible = ref(false)
 const selectedCategoryName = ref('')
-const selectedCategoryImages = ref<Array<{ id: string, url: string, title?: string, description?: string, tags?: string[] }>>([])
+const selectedCategoryImages = ref<Array<{ id: string, url: string, title?: string, description?: string, tags?: string[], exif_info?: ExifData | null }>>([])
 
 // Color palette for random border colors - changed to deeper pastel colors
 const colorPalette = [
@@ -132,6 +132,7 @@ const handleViewMoreImages = async (category: ExtendedCategory) => {
         title: img.title || 'Untitled Image',
         description: img.description || 'No description.',
         tags: parsedTags,
+        exif_info: img.exif_info,
       }
     })
     isGalleryDialogVisible.value = true
