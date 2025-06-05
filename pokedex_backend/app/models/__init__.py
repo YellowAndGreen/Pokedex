@@ -34,6 +34,14 @@ from .species_info_models import (
     get_pinyin_initials,
     populate_pinyin_for_species_create,
 )
+from .tag_models import (
+    Tag,
+    TagBase,
+    TagCreate,
+    TagRead,
+    TagUpdate,
+)
+from .link_models import ImageTagLink
 
 # 解析所有模型导入后的前向引用
 # 这对于使用字符串类型提示（如 List["Image"]）定义的关系至关重要
@@ -44,6 +52,8 @@ CategoryReadWithImages.model_rebuild()
 ImageRead.model_rebuild()
 Species.model_rebuild()
 SpeciesRead.model_rebuild()
+Tag.model_rebuild()
+ImageTagLink.model_rebuild()
 
 __all__ = [
     "Category",
@@ -65,4 +75,10 @@ __all__ = [
     "get_pinyin_full",
     "get_pinyin_initials",
     "populate_pinyin_for_species_create",
+    "Tag",
+    "TagBase",
+    "TagCreate",
+    "TagRead",
+    "TagUpdate",
+    "ImageTagLink",
 ]

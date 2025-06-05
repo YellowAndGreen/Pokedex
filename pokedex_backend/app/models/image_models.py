@@ -11,6 +11,10 @@ from pydantic import computed_field
 
 from app.core.config import settings
 
+# Import Tag and TagRead for relationships and schema definitions
+from .tag_models import Tag, TagRead
+from .link_models import ImageTagLink
+
 # 避免循环导入，CategoryRead 在需要时以字符串形式提示，或按需导入
 # from app.models.category_models import CategoryRead
 
@@ -61,7 +65,6 @@ class ImageBase(SQLModel):
     mime_type: Optional[str] = Field(None, description="如 image/jpeg")
     size_bytes: Optional[int] = Field(None, description="文件大小")
     description: Optional[str] = Field(None, max_length=500, description="图片描述")
-    tags: Optional[str] = Field(None, description="逗号分隔的标签字符串或JSON字符串")
     # category_id 将在 Image (DB model) 和 ImageRead 中定义，并使用 uuid.UUID
     # exif_info 将在 Image (DB model), ImageCreate 和 ImageRead 中定义
 
@@ -98,6 +101,13 @@ class Image(ImageBase, table=True):
     )
     category: Optional["Category"] = Relationship(back_populates="images")
 
+    # Add relationship to Tag model
+    tags: List["Tag"] = Relationship(
+        back_populates="images",
+        link_model=ImageTagLink,
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
+
 
 class ImageCreate(SQLModel):
     """创建新图片时，API端点可能接收的元数据 (文件本身是 UploadFile)
@@ -108,7 +118,7 @@ class ImageCreate(SQLModel):
         None, max_length=255, description="图片标题，若不提供可由文件名生成"
     )
     description: Optional[str] = Field(None, max_length=500, description="图片描述")
-    tags: Optional[str] = Field(None, description="逗号分隔的标签")
+    tags: Optional[List[str]] = Field(default_factory=list, description="标签名称列表")
     category_id: uuid.UUID
     # 文件相关的原始名称、mime类型、大小等现在是此模型的一部分，由后端填充。
     original_filename: str = Field(description="用户上传时的原始文件名")
@@ -134,6 +144,7 @@ class ImageRead(ImageBase):
     updated_at: Optional[datetime] = None
     file_metadata: Optional[Dict[str, Any]] = None
     exif_info: Optional[ExifData] = None
+    tags: Optional[List["TagRead"]] = Field(default_factory=list)
 
     @computed_field
     @property
@@ -164,7 +175,7 @@ class ImageUpdate(SQLModel):
 
     title: Optional[str] = Field(None, max_length=255, description="新的图片标题")
     description: Optional[str] = Field(None, max_length=500)
-    tags: Optional[str] = Field(None)
+    tags: Optional[List[str]] = Field(default=None, description="要更新的标签名称列表")
     category_id: Optional[uuid.UUID] = None
     set_as_category_thumbnail: Optional[bool] = Field(
         None, description="是否将此图片设置为其所属类别的缩略图"

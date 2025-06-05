@@ -5,7 +5,7 @@
 
 from typing import List, Optional
 from fastapi.concurrency import run_in_threadpool
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 import uuid
 
 from app.models import (
@@ -13,10 +13,13 @@ from app.models import (
     ImageCreate,
     ImageUpdate,
     ExifData,
+    Tag,
+    ImageTagLink,
 )  # ImageCreate 通常在内部使用
 from app.services.file_storage_service import FileStorageService
 from app.core.config import settings
 from pathlib import Path
+from app.crud import tag_crud
 
 
 def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
@@ -30,9 +33,11 @@ def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
     返回:
         Image: 创建成功后的图片对象。
     """
-    # 将 Pydantic 模型 (ImageCreate) 转换为字典，以便创建 SQLAlchemy 模型 (Image)
-    # exclude_unset=True 仅包含显式设置的字段
-    image_data_for_db = image_create_data.model_dump(exclude_unset=True)
+    # Extract tags before dumping model, as it's handled via relationship
+    tags_data = image_create_data.tags
+    image_data_for_db = image_create_data.model_dump(
+        exclude_unset=True, exclude={"tags"}
+    )
 
     # 关键修复：如果 exif_info 字段存在并且是 ExifData 的实例，
     # 将其转换为字典形式，以便 SQLAlchemy 的 JSON 类型可以正确处理。
@@ -48,6 +53,13 @@ def create_image(*, session: Session, image_create_data: ImageCreate) -> Image:
     # 但当前 file_metadata 已经是在路由中构造为字典，所以应该没问题
 
     db_image = Image(**image_data_for_db)
+
+    # Process and add tags if provided
+    if tags_data:
+        for tag_name in tags_data:
+            tag = tag_crud.get_tag_by_name(session=session, name=tag_name)
+            db_image.tags.append(tag)
+
     session.add(db_image)
     session.commit()
     session.refresh(db_image)
@@ -74,6 +86,7 @@ def get_images_by_category_id(
 ) -> List[Image]:
     """
     根据类别ID从数据库中获取该类别下的所有图片记录 (支持分页)。
+    SQLModel will automatically handle loading related tags when ImageRead is constructed.
 
     参数:
         session (Session): 数据库会话对象。
@@ -95,6 +108,7 @@ def get_all_images(*, session: Session, skip: int = 0, limit: int = 100) -> List
     """
     获取数据库中所有的图片记录 (支持分页)。
     此函数通常在管理后台或特定场景使用，一般更推荐按类别查询。
+    SQLModel will automatically handle loading related tags when ImageRead is constructed.
 
     参数:
         session (Session): 数据库会话对象。
@@ -123,14 +137,23 @@ def update_image_metadata(
     返回:
         Image: 更新成功后的图片对象。
     """
-    update_data = image_in.dict(exclude_unset=True)
+    # Extract tags before dumping model, as it's handled via relationship
+    tags_update_data = image_in.tags
+    update_data = image_in.model_dump(
+        exclude_unset=True, exclude={"tags", "set_as_category_thumbnail"}
+    )
 
-    # 从 update_data 中移除不属于 Image 模型直接属性的字段
-    if "set_as_category_thumbnail" in update_data:
-        del update_data["set_as_category_thumbnail"]
-
+    # Update standard fields
     for key, value in update_data.items():
         setattr(db_image, key, value)
+
+    # Handle tags update if tags_update_data is not None (meaning client wants to update tags)
+    if tags_update_data is not None:
+        db_image.tags.clear()  # Clear existing tags first
+        for tag_name in tags_update_data:
+            tag = tag_crud.get_tag_by_name(session=session, name=tag_name)
+            db_image.tags.append(tag)
+
     session.add(db_image)
     session.commit()
     session.refresh(db_image)
@@ -167,6 +190,86 @@ async def delete_image(*, session: Session, image_id: uuid.UUID) -> Optional[Ima
         )
         await file_service.delete_file(thumbnail_full_path)
 
+    # Clear tag associations before deleting the image
+    # This should remove entries from ImageTagLink table
+    # Needs to be done in a synchronous block if db_image.tags is a sync relationship manager
+    def clear_tags_sync(img_to_clear_tags: Image):
+        img_to_clear_tags.tags.clear()
+        session.add(
+            img_to_clear_tags
+        )  # Re-add to session if clear() detaches or similar
+        session.commit()  # Commit this change specifically for tags
+
+    await run_in_threadpool(clear_tags_sync, db_image)
+    # Refresh to ensure the state is current before final delete, though likely not strictly needed here
+    # await run_in_threadpool(session.refresh, db_image)
+
     await run_in_threadpool(session.delete, db_image)
     await run_in_threadpool(session.commit)
     return db_image
+
+
+def get_images_by_tag_names(
+    *,
+    session: Session,
+    tag_names: List[str],
+    skip: int = 0,
+    limit: int = 100,
+    match_all_tags: bool = False,
+) -> List[Image]:
+    """
+    根据标签名称列表从数据库中获取图片记录。
+
+    参数:
+        session (Session): 数据库会话对象。
+        tag_names (List[str]): 要搜索的标签名称列表。
+        skip (int): 跳过的记录数。
+        limit (int): 返回的最大记录数。
+        match_all_tags (bool): 如果为True，则图片必须包含所有指定的标签 (AND逻辑)；
+                               如果为False，则图片至少包含一个指定的标签 (OR逻辑)。
+
+    返回:
+        List[Image]: 图片对象列表。
+    """
+    if not tag_names:
+        return []
+
+    valid_tags: List[Tag] = []
+    for name in tag_names:
+        tag = tag_crud.get_tag_by_name(session=session, name=name)
+        if tag:
+            valid_tags.append(tag)
+
+    if not valid_tags:
+        return []
+
+    tag_ids = [tag.id for tag in valid_tags]
+
+    statement = select(Image).join(ImageTagLink).where(ImageTagLink.tag_id.in_(tag_ids))  # type: ignore
+
+    if match_all_tags:
+        # AND logic: Image must have all the valid_tags
+        # The number of distinct tags linked to the image must be equal to the number of valid_tags found
+        if len(valid_tags) < len(
+            set(tag_names)
+        ):  # If some input tag names were not found
+            # And we need to match ALL input tags, then it's impossible.
+            # However, our current valid_tags only contains found tags.
+            # So, we match all *found* valid_tags.
+            pass  # Current logic with valid_tags handles this implicitly.
+
+        statement = (
+            select(Image)
+            .join(ImageTagLink, Image.id == ImageTagLink.image_id)
+            .where(ImageTagLink.tag_id.in_(tag_ids))  # type: ignore
+            .group_by(Image.id)  # Group by image to count tags per image
+            .having(func.count(func.distinct(ImageTagLink.tag_id)) == len(tag_ids))
+        )
+    else:
+        # OR logic: Image must have at least one of the tags
+        # Need distinct images because an image might match multiple tags in the list
+        statement = statement.distinct()
+
+    statement = statement.offset(skip).limit(limit)
+    images = session.exec(statement).all()
+    return images

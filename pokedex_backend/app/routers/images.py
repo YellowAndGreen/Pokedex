@@ -19,6 +19,7 @@ from fastapi import (
     File,
     Form,
     Response,
+    Query,
 )
 from sqlmodel import Session
 
@@ -55,7 +56,9 @@ async def upload_image(
     category_id: uuid.UUID = Form(..., description="图片所属的类别ID"),
     title: Optional[str] = Form(None, description="图片的可选标题"),
     description: Optional[str] = Form(None, description="图片的可选描述"),
-    tags: Optional[str] = Form(None, description="图片的标签，逗号分隔"),
+    tags: Optional[List[str]] = Form(
+        [], description="图片的标签列表 (例如: tags=标签1&tags=标签2)"
+    ),
     set_as_category_thumbnail: Optional[bool] = Form(
         False, description="是否将此图片设置为类别的缩略图"
     ),
@@ -67,7 +70,7 @@ async def upload_image(
     - **category_id**: 图片将归属的类别ID，必须有效。
     - **title**: 图片的可选标题。
     - **description**: 对图片的可选文字描述。
-    - **tags**: 以逗号分隔的字符串，用于标记图片。
+    - **tags**: 图片的标签列表。客户端应为每个标签名发送一个单独的 'tags' 表单字段。
     - **set_as_category_thumbnail**: 是否将此图片设置为类别的缩略图。
     """
     # 1. 校验类别ID是否存在
@@ -402,3 +405,42 @@ async def delete_image(*, session: Session = Depends(get_session), image_id: uui
     # 2. 删除数据库记录
     await image_crud.delete_image(session=session, image_id=image_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/by-tags/", response_model=List[ImageRead], summary="根据标签名称搜索图片")
+def search_images_by_tags(
+    *,
+    session: Session = Depends(get_session),
+    tag_names: List[str] = Query(
+        ...,
+        description="要搜索的标签名称列表 (例如: tag_names=夏天&tag_names=风景)",
+        alias="tag",
+    ),
+    match_all: bool = Query(False, description="是否要求匹配所有提供的标签 (AND逻辑)"),
+    skip: int = Query(0, ge=0, description="跳过的记录数"),
+    limit: int = Query(
+        100, ge=1, le=200, description="返回的最大记录数"
+    ),  # Max 200 to prevent overload
+) -> List[ImageRead]:
+    """
+    根据一个或多个标签名称搜索图片。
+
+    - **tag**: 一个或多个标签名称。可以多次提供此查询参数。
+    - **match_all**: 如果为 `true`，则返回的图片必须包含所有提供的标签。
+                     如果为 `false` (默认)，则返回的图片至少包含一个提供的标签。
+    - **skip**: 分页参数，跳过的记录数。
+    - **limit**: 分页参数，返回的最大记录数。
+    """
+    if not tag_names:
+        # Although Query(...) makes it required, an explicit check can be useful or could return HTTP 400
+        return []
+        # Or: raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一个标签名称进行搜索")
+
+    images = image_crud.get_images_by_tag_names(
+        session=session,
+        tag_names=tag_names,
+        skip=skip,
+        limit=limit,
+        match_all_tags=match_all,
+    )
+    return images  # type: ignore

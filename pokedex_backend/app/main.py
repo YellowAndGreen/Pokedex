@@ -12,6 +12,7 @@ from app.database import create_db_and_tables, engine  # 引入数据库初始�
 from app.routers import categories as categories_router  # 使用别名以匹配指南中的变量名
 from app.routers import images as images_router  # 使用别名以匹配指南中的变量名
 from app.routers import species_info_router
+from app.routers import tags
 from app.models import (
     species_info_models,  # 导入此模块以确保SQLModel元数据包含Species表
     image_models,  # 新增：确保 Image 和 ExifData 模型被加载
@@ -133,7 +134,7 @@ def create_application() -> FastAPI:
         prefix=settings.api_v1_prefix,
         tags=["Species Information"],
     )
-
+    app.include_router(tags.router, prefix=settings.api_v1_prefix, tags=["Tags"])
     return app
 
 
