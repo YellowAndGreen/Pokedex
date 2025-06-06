@@ -7,8 +7,9 @@
 from typing import List, Optional
 from sqlmodel import Session, select, func, col
 import uuid
+from sqlalchemy.orm import selectinload
 
-from app.models import Tag, TagCreate, TagUpdate, ImageTagLink
+from app.models import Tag, TagCreate, TagUpdate, ImageTagLink, Image
 from fastapi import HTTPException, status
 
 
@@ -70,6 +71,8 @@ def get_tag_by_name(*, session: Session, name: str) -> Optional[Tag]:
 def get_or_create_tag(*, session: Session, tag_name: str) -> Tag:
     """
     根据名称获取标签，如果不存在则创建新标签。
+    此函数现在只将新标签添加到会话中，而不提交它。
+    提交操作应由调用此函数的上层路由或服务处理。
 
     参数:
         session (Session): 数据库会话对象。
@@ -81,29 +84,26 @@ def get_or_create_tag(*, session: Session, tag_name: str) -> Tag:
     db_tag = get_tag_by_name(session=session, name=tag_name)
     if not db_tag:
         tag_create = TagCreate(name=tag_name)
-        # No conflict check needed here as get_tag_by_name is case-insensitive
-        # and create_tag (if it were called directly) would handle exact name conflict.
-        # We're doing a get_or_create pattern.
         db_tag = Tag.model_validate(tag_create)
         session.add(db_tag)
-        session.commit()
+        # Flush the session to assign an ID to the new tag without committing the transaction
+        session.flush()
         session.refresh(db_tag)
     return db_tag
 
 
 def get_all_tags(*, session: Session, skip: int = 0, limit: int = 100) -> List[Tag]:
     """
-    获取数据库中所有的标签 (支持分页)。
-
-    参数:
-        session (Session): 数据库会话对象。
-        skip (int): 跳过的记录数。
-        limit (int): 返回的最大记录数。
-
-    返回:
-        List[Tag]: 标签对象列表。
+    获取数据库中所有的标签记录 (支持分页)。
+    使用 selectinload 优化，一次性加载所有标签的关联图片，避免N+1查询。
+    虽然列表API当前不返回图片，但这是一个好的实践，以防未来需要。
     """
-    statement = select(Tag).offset(skip).limit(limit)
+    statement = (
+        select(Tag)
+        .options(selectinload(Tag.images))  # 预加载图片
+        .offset(skip)
+        .limit(limit)
+    )
     tags = session.exec(statement).all()
     return tags
 

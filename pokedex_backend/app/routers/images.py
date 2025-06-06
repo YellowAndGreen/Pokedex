@@ -24,8 +24,18 @@ from fastapi import (
 from sqlmodel import Session
 
 from app.database import get_session
-from app.models import ImageCreate, ImageRead, ImageUpdate, Category, ExifData
-from app.crud import image_crud, category_crud
+from app.models import (
+    ImageCreate,
+    ImageRead,
+    ImageUpdate,
+    Category,
+    ExifData,
+    Image,
+    ImageReadWithTags,
+    Tag,
+    TagsUpdate,
+)
+from app.crud import image_crud, category_crud, tag_crud
 from app.services.file_storage_service import FileStorageService  # 假设服务已实现
 from app.services.image_processing_service import (
     ImageProcessingService,
@@ -56,32 +66,32 @@ async def upload_image(
     category_id: uuid.UUID = Form(..., description="图片所属的类别ID"),
     title: Optional[str] = Form(None, description="图片的可选标题"),
     description: Optional[str] = Form(None, description="图片的可选描述"),
-    tags: Optional[List[str]] = Form(
-        [], description="图片的标签列表 (例如: tags=标签1&tags=标签2)"
-    ),
+    tags: Optional[str] = Form(None),  # 接收逗号分隔的字符串
     set_as_category_thumbnail: Optional[bool] = Form(
         False, description="是否将此图片设置为类别的缩略图"
     ),
+    file_service: FileStorageService = Depends(),
 ) -> ImageRead:
     """
-    上传一张新的图片到指定的类别。
-
-    - **file**: 图片文件本身。
-    - **category_id**: 图片将归属的类别ID，必须有效。
-    - **title**: 图片的可选标题。
-    - **description**: 对图片的可选文字描述。
-    - **tags**: 图片的标签列表。客户端应为每个标签名发送一个单独的 'tags' 表单字段。
-    - **set_as_category_thumbnail**: 是否将此图片设置为类别的缩略图。
+    上传新图片，并关联到类别和标签。
+    - **file**: 必须是图片文件。
+    - **title**: 图片标题。
+    - **description**: 图片描述 (可选)。
+    - **category_id**: 图片所属的类别ID。
+    - **tags**: 逗号分隔的标签字符串 (例如 "风景,旅行") (可选)。
     """
-    # 1. 校验类别ID是否存在
-    db_category = category_crud.get_category_by_id(
+    # 检查类别是否存在
+    category = category_crud.get_category_by_id(
         session=session, category_id=category_id
     )
-    if not db_category:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"类别ID {category_id} 不存在",
-        )
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # 处理标签字符串，将其拆分为一个标签名称列表
+    # 如果 tags 字符串非空，则按逗号分割并去除首尾空格
+    tag_names = [name.strip() for name in tags.split(",")] if tags else []
+    # 过滤掉空的标签名 (例如 "tag1,,tag2" 的情况)
+    tag_names = [name for name in tag_names if name]
 
     # 2. 保存原始文件 (FileStorageService 应处理文件名唯一化和分级目录)
     try:
@@ -218,7 +228,7 @@ async def upload_image(
         mime_type=file.content_type,  # type: ignore
         size_bytes=(await aio_os.stat(image_absolute_path)).st_size,
         description=description,
-        tags=tags,
+        # tags=tag_names,  # Tags are now handled by create_image_with_tags
         category_id=category_id,
         file_metadata=(
             exif_data_raw if exif_data_raw else None
@@ -226,19 +236,57 @@ async def upload_image(
         exif_info=parsed_exif_object,  # 将结构化的 ExifData 实例存入 exif_info
     )
 
-    db_image = image_crud.create_image(
-        session=session, image_create_data=image_create_data
+    # 调用重构后的CRUD函数，分别传入 image 模型和 tag 名称列表
+    db_image = image_crud.create_image_with_tags(
+        db=session, image_create=image_create_data, tag_names=tag_names
     )
 
     # 6. 如果需要，设置类别缩略图
-    if set_as_category_thumbnail and db_image.relative_thumbnail_path and db_category:
-        db_category.thumbnail_path = db_image.relative_thumbnail_path
-        session.add(db_category)
+    if set_as_category_thumbnail and db_image.relative_thumbnail_path and category:
+        category.thumbnail_path = db_image.relative_thumbnail_path
+        session.add(category)
         session.commit()
-        session.refresh(db_category)
+        session.refresh(category)
         # session.refresh(db_image) # db_image 本身没有改变，但如果需要最新的 category 信息可以考虑
 
     return db_image
+
+
+@router.get("/by-tags/", response_model=List[ImageRead], summary="根据标签名称搜索图片")
+def search_images_by_tags(
+    *,
+    session: Session = Depends(get_session),
+    tag_names: List[str] = Query(
+        ...,
+        description="要搜索的标签名称列表 (例如: tag_names=夏天&tag_names=风景)",
+        alias="tag",
+    ),
+    match_all: bool = Query(False, description="是否要求匹配所有提供的标签 (AND逻辑)"),
+    skip: int = Query(0, ge=0, description="跳过的记录数"),
+    limit: int = Query(
+        100, ge=1, le=200, description="返回的最大记录数"
+    ),  # Max 200 to prevent overload
+) -> List[ImageRead]:
+    """
+    根据一个或多个标签的名称搜索图片。
+
+    - **tag_names**: 一个或多个标签名称。
+    - **match_all**: 如果为 `true`，则只返回包含所有指定标签的图片 (AND查询)。
+                     如果为 `false` (默认)，则返回包含任何一个指定标签的图片 (OR查询)。
+    """
+    if not tag_names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="至少需要提供一个标签名称进行搜索。",
+        )
+    images = image_crud.get_images_by_tag_names(
+        session=session,
+        tag_names=tag_names,
+        match_all=match_all,
+        skip=skip,
+        limit=limit,
+    )
+    return images
 
 
 @router.get("/{image_id}/", response_model=ImageRead, summary="获取图片元数据")
@@ -246,12 +294,12 @@ def read_image(
     *, session: Session = Depends(get_session), image_id: uuid.UUID
 ) -> ImageRead:
     """
-    根据ID获取指定图片的元数据。
+    根据ID获取单个图片的元数据。
     """
-    db_image = image_crud.get_image_by_id(session=session, image_id=image_id)
+    db_image = image_crud.get_image(session=session, image_id=image_id)
     if not db_image:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片未找到")
-    return db_image  # type: ignore
+        raise HTTPException(status_code=404, detail="Image not found")
+    return db_image
 
 
 @router.put("/{image_id}/", response_model=ImageRead, summary="更新图片元数据")
@@ -407,40 +455,53 @@ async def delete_image(*, session: Session = Depends(get_session), image_id: uui
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/by-tags/", response_model=List[ImageRead], summary="根据标签名称搜索图片")
-def search_images_by_tags(
+@router.put(
+    "/{image_id}/tags", response_model=ImageReadWithTags, summary="更新图片的标签"
+)
+def update_image_tags_route(
     *,
     session: Session = Depends(get_session),
-    tag_names: List[str] = Query(
-        ...,
-        description="要搜索的标签名称列表 (例如: tag_names=夏天&tag_names=风景)",
-        alias="tag",
-    ),
-    match_all: bool = Query(False, description="是否要求匹配所有提供的标签 (AND逻辑)"),
-    skip: int = Query(0, ge=0, description="跳过的记录数"),
-    limit: int = Query(
-        100, ge=1, le=200, description="返回的最大记录数"
-    ),  # Max 200 to prevent overload
-) -> List[ImageRead]:
+    image_id: uuid.UUID,
+    tags_in: TagsUpdate,
+):
     """
-    根据一个或多个标签名称搜索图片。
+    更新指定ID图片的标签。
 
-    - **tag**: 一个或多个标签名称。可以多次提供此查询参数。
-    - **match_all**: 如果为 `true`，则返回的图片必须包含所有提供的标签。
-                     如果为 `false` (默认)，则返回的图片至少包含一个提供的标签。
-    - **skip**: 分页参数，跳过的记录数。
-    - **limit**: 分页参数，返回的最大记录数。
+    此操作将完全替换现有标签为请求中提供的新标签列表。
+    - 如果提供的标签名称不存在，会自动创建新标签。
     """
-    if not tag_names:
-        # Although Query(...) makes it required, an explicit check can be useful or could return HTTP 400
-        return []
-        # Or: raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="至少需要一个标签名称进行搜索")
+    image = image_crud.get_image_by_id(session=session, image_id=image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
 
-    images = image_crud.get_images_by_tag_names(
-        session=session,
-        tag_names=tag_names,
-        skip=skip,
-        limit=limit,
-        match_all_tags=match_all,
+    new_tags = []
+    for tag_name in tags_in.tags:
+        tag = tag_crud.get_or_create_tag(session=session, tag_name=tag_name)
+        new_tags.append(tag)
+
+    updated_image = image_crud.update_image_tags(
+        session=session, image=image, new_tags=new_tags
     )
-    return images  # type: ignore
+    return updated_image
+
+
+@router.get("/", response_model=List[ImageRead])
+def get_all_images(
+    session: Session = Depends(get_session), skip: int = 0, limit: int = 100
+):
+    """
+    获取所有图片的列表 (支持分页)。
+    """
+    images = image_crud.get_all_images(session=session, skip=skip, limit=limit)
+    return images
+
+
+@router.get("/{image_id}", response_model=ImageReadWithTags)
+def get_image_by_id(image_id: uuid.UUID, session: Session = Depends(get_session)):
+    """
+    根据ID获取指定图片的元数据。
+    """
+    db_image = image_crud.get_image_by_id(session=session, image_id=image_id)
+    if not db_image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片未找到")
+    return db_image  # type: ignore

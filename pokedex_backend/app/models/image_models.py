@@ -182,4 +182,8 @@ class ImageUpdate(SQLModel):
     )
 
 
+class ImageReadWithTags(ImageRead):
+    tags: List["TagRead"] = []
+
+
 # 有关前向引用的处理，请参考 models/__init__.py 中的说明

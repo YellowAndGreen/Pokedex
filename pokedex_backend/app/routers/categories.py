@@ -16,8 +16,11 @@ from app.models import (
     CategoryRead,
     CategoryReadWithImages,
     CategoryUpdate,
+    ImageRead,
 )
 from app.crud import category_crud
+from app.crud import image_crud
+from app.utils import run_sync
 
 router = APIRouter(
     prefix="/categories",
@@ -86,7 +89,9 @@ def read_category_with_images(
     return db_category
 
 
-@router.put("/{category_id}/", response_model=CategoryRead, summary="更新特定类别信息")
+@router.patch(
+    "/{category_id}/", response_model=CategoryRead, summary="更新特定类别信息"
+)
 def update_category(
     *,
     session: Session = Depends(get_session),
@@ -131,22 +136,41 @@ async def delete_category(
     删除指定ID的类别。
 
     重要提示:
-    此操作会首先检查类别是否存在。如果类别下仍有关联图片，
-    将打印一条警告信息。实际的删除行为（是否级联删除图片等）
-    取决于数据库的外键约束设置以及 `category_crud.delete_category` 的具体实现。
-    根据项目规划 (README.md)，删除类别时应一并处理关联图片（包括物理文件）。
-    这部分级联删除逻辑建议在专门的服务层或`category_crud.delete_category`中完善。
+    此操作会级联删除类别下的所有图片记录及其对应的物理文件。
+    在执行删除前，会首先检查类别是否存在。
     """
-    db_category = category_crud.get_category_by_id(
-        session=session, category_id=category_id
+    # 检查类别是否存在
+    db_category = await run_sync(
+        category_crud.get_category_by_id, session=session, category_id=category_id
     )
     if not db_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="类别未找到")
 
-    if db_category.images:
-        print(
-            f"警告：正在删除类别 {db_category.name} (ID: {category_id})，该类别下尚有关联图片。关联图片的处理需后续完善。"
-        )
-
+    # 执行删除操作，CRUD函数中已包含完整的级联删除逻辑
     await category_crud.delete_category(session=session, category_id=category_id)
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{category_id}/images/", response_model=List[ImageRead])
+def get_images_in_category(
+    category_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    skip: int = 0,
+    limit: int = 100,
+):
+    """
+    获取指定类别下的所有图片 (支持分页)。
+    """
+    # 首先校验类别是否存在
+    db_category = category_crud.get_category_by_id(
+        session=session, category_id=category_id
+    )
+    if not db_category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # 获取该类别下的图片
+    images = image_crud.get_images_by_category_id(
+        session=session, category_id=category_id, skip=skip, limit=limit
+    )
+    return images

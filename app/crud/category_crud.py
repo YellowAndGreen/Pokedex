@@ -1,15 +1,15 @@
-"""类别CRUD操作模块
+"""类别CRUD (Create, Read, Update, Delete) 操作模块
 
-包含针对Category模型的数据库增删改查函数。
+提供所有与类别模型相关的数据库交互函数。
 """
 
-from typing import List, Optional
-from fastapi.concurrency import run_in_threadpool  # 用于在异步函数中运行同步IO操作
-from sqlmodel import Session, select
-from sqlalchemy.orm import selectinload  # 用于预加载关联数据，避免N+1查询问题
 import uuid
+from typing import List, Optional
 
-# 确保CategoryUpdate在模型中已定义并按需导入
+from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
+from fastapi.concurrency import run_in_threadpool
+
 from app.models import (
     Category,
     CategoryCreate,
@@ -186,7 +186,6 @@ async def delete_category(
 
     images_in_category = await run_in_threadpool(get_images_sync)
 
-    # 级联删除图片文件和数据库记录
     for img in images_in_category:
         # 首先尝试删除物理文件
         if img.relative_file_path:
@@ -202,13 +201,12 @@ async def delete_category(
             await file_service.delete_file(thumbnail_full_path)
 
         # 在线程池中执行同步的数据库delete操作 (针对单个图片)
-        # 注意：这里只是标记为删除，真正的事务提交在最后统一进行
         await run_in_threadpool(session.delete, img)
 
     # 在线程池中执行同步的数据库delete操作 (针对类别本身)
     await run_in_threadpool(session.delete, category_to_delete)
 
-    # 将所有数据库更改（图片删除和类别删除）在单个原子事务中统一提交
+    # 将所有数据库更改（图片删除和类别删除）在单个事务中统一提交
     await run_in_threadpool(session.commit)
 
     return category_to_delete  # 返回删除前获取到的类别对象信息

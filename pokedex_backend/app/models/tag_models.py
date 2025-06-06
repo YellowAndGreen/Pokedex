@@ -56,11 +56,8 @@ class TagRead(TagBase):
     """读取标签信息时使用的模型"""
 
     id: uuid.UUID
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
+    created_at: datetime
+    updated_at: datetime
 
 
 class TagUpdate(SQLModel):
@@ -69,3 +66,7 @@ class TagUpdate(SQLModel):
     name: Optional[str] = Field(
         default=None, max_length=100, description="新的标签名称"
     )
+
+
+class TagsUpdate(SQLModel):
+    tags: List[str]

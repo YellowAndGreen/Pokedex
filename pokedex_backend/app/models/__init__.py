@@ -23,6 +23,7 @@ from .image_models import (
     ImageCreate,
     ImageRead,
     ImageUpdate,
+    ImageReadWithTags,
     ExifData,
 )
 from .species_info_models import (
@@ -40,6 +41,7 @@ from .tag_models import (
     TagCreate,
     TagRead,
     TagUpdate,
+    TagsUpdate,
 )
 from .link_models import ImageTagLink
 
@@ -67,6 +69,7 @@ __all__ = [
     "ImageCreate",
     "ImageRead",
     "ImageUpdate",
+    "ImageReadWithTags",
     "ExifData",
     "Species",
     "SpeciesBase",
@@ -80,5 +83,6 @@ __all__ = [
     "TagCreate",
     "TagRead",
     "TagUpdate",
+    "TagsUpdate",
     "ImageTagLink",
 ]
