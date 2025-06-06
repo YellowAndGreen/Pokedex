@@ -9,17 +9,17 @@ from sqlmodel import Session, select, func, col
 import uuid
 from sqlalchemy.orm import selectinload
 
-from app.models import Tag, TagCreate, TagUpdate, ImageTagLink, Image
+from app.models import Tag, TagBase, TagUpdate, ImageTagLink, Image
 from fastapi import HTTPException, status
 
 
-def create_tag(*, session: Session, tag_in: TagCreate) -> Tag:
+def create_tag(*, session: Session, tag_in: TagBase) -> Tag:
     """
     在数据库中创建一个新的标签。
 
     参数:
         session (Session): 数据库会话对象。
-        tag_in (TagCreate): 包含新标签数据的模型。
+        tag_in (TagBase): 包含新标签数据的模型。
 
     返回:
         Tag: 创建成功后的标签对象。
@@ -83,7 +83,7 @@ def get_or_create_tag(*, session: Session, tag_name: str) -> Tag:
     """
     db_tag = get_tag_by_name(session=session, name=tag_name)
     if not db_tag:
-        tag_create = TagCreate(name=tag_name)
+        tag_create = TagBase(name=tag_name)
         db_tag = Tag.model_validate(tag_create)
         session.add(db_tag)
         # Flush the session to assign an ID to the new tag without committing the transaction

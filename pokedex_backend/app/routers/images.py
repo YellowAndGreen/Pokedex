@@ -31,9 +31,7 @@ from app.models import (
     Category,
     ExifData,
     Image,
-    ImageReadWithTags,
     Tag,
-    TagsUpdate,
 )
 from app.crud import image_crud, category_crud, tag_crud
 from app.services.file_storage_service import FileStorageService  # 假设服务已实现
@@ -420,69 +418,16 @@ def update_image_metadata(
 )
 async def delete_image(*, session: Session = Depends(get_session), image_id: uuid.UUID):
     """
-    删除指定的图片，包括其元数据和存储的物理文件（原图和缩略图）。
+    从数据库中删除一张图片及其相关文件。
+    如果图片不存在，则不执行任何操作并返回204。
     """
-    db_image = image_crud.get_image_by_id(session=session, image_id=image_id)
-    if not db_image:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片未找到")
-
-    # 1. 删除物理文件 (原图和缩略图)
-    # 路径应从数据库记录中获取，并构造成服务可用的形式
-    paths_to_delete_tasks = []
-    if db_image.relative_file_path:
-        original_image_abs_path = (
-            settings.image_storage_root / db_image.relative_file_path
-        )
-        paths_to_delete_tasks.append(file_storage.delete_file(original_image_abs_path))
-
-    if db_image.relative_thumbnail_path:
-        thumbnail_abs_path = (
-            settings.thumbnail_storage_root / db_image.relative_thumbnail_path
-        )
-        paths_to_delete_tasks.append(file_storage.delete_file(thumbnail_abs_path))
-
-    delete_results = await asyncio.gather(
-        *paths_to_delete_tasks, return_exceptions=True
-    )
-    for result in delete_results:
-        if isinstance(result, Exception):
-            print(f"删除物理文件时发生错误: {result}")  # 日志记录
-        # elif not result: # 如果delete_file返回False表示失败
-        # print(f"尝试删除某个文件失败或文件不存在") # 日志记录
-
-    # 2. 删除数据库记录
-    await image_crud.delete_image(session=session, image_id=image_id)
+    deleted_image = await image_crud.delete_image(session=session, image_id=image_id)
+    if not deleted_image:
+        # The image might have already been deleted, or never existed.
+        # Returning 204 is appropriate in either case as the client's desired state
+        # (the image being gone) is met.
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.put(
-    "/{image_id}/tags", response_model=ImageReadWithTags, summary="更新图片的标签"
-)
-def update_image_tags_route(
-    *,
-    session: Session = Depends(get_session),
-    image_id: uuid.UUID,
-    tags_in: TagsUpdate,
-):
-    """
-    更新指定ID图片的标签。
-
-    此操作将完全替换现有标签为请求中提供的新标签列表。
-    - 如果提供的标签名称不存在，会自动创建新标签。
-    """
-    image = image_crud.get_image_by_id(session=session, image_id=image_id)
-    if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    new_tags = []
-    for tag_name in tags_in.tags:
-        tag = tag_crud.get_or_create_tag(session=session, tag_name=tag_name)
-        new_tags.append(tag)
-
-    updated_image = image_crud.update_image_tags(
-        session=session, image=image, new_tags=new_tags
-    )
-    return updated_image
 
 
 @router.get("/", response_model=List[ImageRead])
@@ -496,12 +441,12 @@ def get_all_images(
     return images
 
 
-@router.get("/{image_id}", response_model=ImageReadWithTags)
+@router.get("/{image_id}", response_model=ImageRead)
 def get_image_by_id(image_id: uuid.UUID, session: Session = Depends(get_session)):
     """
-    根据ID获取指定图片的元数据。
+    根据ID获取单个图片对象的详细信息。
     """
     db_image = image_crud.get_image_by_id(session=session, image_id=image_id)
-    if not db_image:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片未找到")
-    return db_image  # type: ignore
+    if db_image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return db_image

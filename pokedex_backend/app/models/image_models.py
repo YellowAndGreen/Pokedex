@@ -144,7 +144,7 @@ class ImageRead(ImageBase):
     updated_at: Optional[datetime] = None
     file_metadata: Optional[Dict[str, Any]] = None
     exif_info: Optional[ExifData] = None
-    tags: Optional[List["TagRead"]] = Field(default_factory=list)
+    tags: List["TagRead"] = Field(default_factory=list)
 
     @computed_field
     @property
@@ -180,10 +180,6 @@ class ImageUpdate(SQLModel):
     set_as_category_thumbnail: Optional[bool] = Field(
         None, description="是否将此图片设置为其所属类别的缩略图"
     )
-
-
-class ImageReadWithTags(ImageRead):
-    tags: List["TagRead"] = []
 
 
 # 有关前向引用的处理，请参考 models/__init__.py 中的说明

@@ -46,12 +46,6 @@ class Tag(TagBase, table=True):
     )
 
 
-class TagCreate(TagBase):
-    """创建新标签时使用的模型"""
-
-    pass
-
-
 class TagRead(TagBase):
     """读取标签信息时使用的模型"""
 
@@ -66,7 +60,3 @@ class TagUpdate(SQLModel):
     name: Optional[str] = Field(
         default=None, max_length=100, description="新的标签名称"
     )
-
-
-class TagsUpdate(SQLModel):
-    tags: List[str]

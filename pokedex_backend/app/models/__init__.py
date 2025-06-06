@@ -23,7 +23,6 @@ from .image_models import (
     ImageCreate,
     ImageRead,
     ImageUpdate,
-    ImageReadWithTags,
     ExifData,
 )
 from .species_info_models import (
@@ -38,10 +37,8 @@ from .species_info_models import (
 from .tag_models import (
     Tag,
     TagBase,
-    TagCreate,
     TagRead,
     TagUpdate,
-    TagsUpdate,
 )
 from .link_models import ImageTagLink
 
@@ -69,7 +66,6 @@ __all__ = [
     "ImageCreate",
     "ImageRead",
     "ImageUpdate",
-    "ImageReadWithTags",
     "ExifData",
     "Species",
     "SpeciesBase",
@@ -80,9 +76,7 @@ __all__ = [
     "populate_pinyin_for_species_create",
     "Tag",
     "TagBase",
-    "TagCreate",
     "TagRead",
     "TagUpdate",
-    "TagsUpdate",
     "ImageTagLink",
 ]
