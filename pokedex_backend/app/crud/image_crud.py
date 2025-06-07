@@ -98,88 +98,85 @@ def get_all_images(*, session: Session, skip: int = 0, limit: int = 100) -> List
 
 
 def update_image_metadata(
-    *, session: Session, db_image: Image, image_in: ImageUpdate
+    *,
+    session: Session,
+    image: Image,
+    image_in: ImageUpdate,
+    new_tags: Optional[List[Tag]] = None,
 ) -> Image:
     """
-    更新数据库中现有图片的元数据 (如描述、标签、所属类别)。
+    更新图片的元数据。
 
     参数:
-        session (Session): 数据库会话对象。
-        db_image (Image): 从数据库获取的现有图片对象。
-        image_in (ImageUpdate): 包含更新后图片元数据的模型。
+        session (Session): 数据库会话
+        image (Image): 要更新的图片对象
+        image_in (ImageUpdate): 包含更新数据的模型
+        new_tags (Optional[List[Tag]]): 新的标签列表，如果为None则不更新标签
 
     返回:
-        Image: 更新成功后的图片对象。
+        Image: 更新后的图片对象
     """
-    # Extract tags before dumping model, as it's handled via relationship
-    tags_update_data = image_in.tags
-    update_data = image_in.model_dump(
-        exclude_unset=True, exclude={"tags", "set_as_category_thumbnail"}
-    )
+    # 更新基本字段
+    update_data = image_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        if field != "tags" and field != "set_as_category_thumbnail":
+            setattr(image, field, value)
 
-    # Update standard fields
-    for key, value in update_data.items():
-        setattr(db_image, key, value)
+    # 更新标签
+    if "tags" in update_data:
+        # 清除现有标签
+        session.query(ImageTagLink).filter(ImageTagLink.image_id == image.id).delete()
+        
+        # 如果提供了新标签，则添加它们
+        if new_tags:
+            for tag in new_tags:
+                link = ImageTagLink(image_id=image.id, tag_id=tag.id)
+                session.add(link)
+        
+        # 清理未使用的标签
+        tag_crud.cleanup_unused_tags(session=session)
 
-    # Handle tags update if tags_update_data is not None (meaning client wants to update tags)
-    if tags_update_data is not None:
-        db_image.tags.clear()  # Clear existing tags first
-        for tag_name in tags_update_data:
-            tag = tag_crud.get_or_create_tag(session=session, tag_name=tag_name)
-            db_image.tags.append(tag)
-
-    session.add(db_image)
+    session.add(image)
     session.commit()
-    session.refresh(db_image)
-    return db_image
+    session.refresh(image)
+    return image
 
 
 async def delete_image(*, session: Session, image_id: uuid.UUID) -> Optional[Image]:
     """
-    从数据库中删除一个图片记录及其物理文件 (原图和缩略图)。
+    从数据库中删除一张图片及其相关文件。
+    如果图片不存在，则返回None。
 
     参数:
-        session (Session): 数据库会话对象。
-        image_id (uuid.UUID): 要删除的图片的ID。
+        session (Session): 数据库会话
+        image_id (uuid.UUID): 要删除的图片ID
 
     返回:
-        Optional[Image]: 如果删除成功则返回被删除的图片对象，否则返回None (如果未找到)。
+        Optional[Image]: 如果图片存在并成功删除，返回被删除的图片对象；否则返回None
     """
-    db_image = await run_in_threadpool(session.get, Image, image_id)
+    db_image = get_image_by_id(session=session, image_id=image_id)
     if not db_image:
         return None
 
-    file_service = FileStorageService()
+    # 初始化文件存储服务
+    file_storage = FileStorageService()
 
-    # Delete physical files first
+    # 删除物理文件
     if db_image.relative_file_path:
-        original_image_full_path = (
-            file_service.image_storage_root / db_image.relative_file_path
-        )
-        await file_service.delete_file(original_image_full_path)
+        original_image_abs_path = settings.image_storage_root / db_image.relative_file_path
+        await file_storage.delete_file(original_image_abs_path)
 
     if db_image.relative_thumbnail_path:
-        thumbnail_full_path = (
-            file_service.thumbnail_storage_root / db_image.relative_thumbnail_path
-        )
-        await file_service.delete_file(thumbnail_full_path)
+        thumbnail_abs_path = settings.thumbnail_storage_root / db_image.relative_thumbnail_path
+        await file_storage.delete_file(thumbnail_abs_path)
 
-    # Clear tag associations before deleting the image
-    # This should remove entries from ImageTagLink table
-    # Needs to be done in a synchronous block if db_image.tags is a sync relationship manager
-    def clear_tags_sync(img_to_clear_tags: Image):
-        img_to_clear_tags.tags.clear()
-        session.add(
-            img_to_clear_tags
-        )  # Re-add to session if clear() detaches or similar
-        session.commit()  # Commit this change specifically for tags
+    # 删除数据库记录
+    session.delete(db_image)
+    session.commit()
 
-    await run_in_threadpool(clear_tags_sync, db_image)
-    # Refresh to ensure the state is current before final delete, though likely not strictly needed here
-    # await run_in_threadpool(session.refresh, db_image)
+    # 清理未使用的标签
+    tag_crud.cleanup_unused_tags(session=session)
 
-    await run_in_threadpool(session.delete, db_image)
-    await run_in_threadpool(session.commit)
     return db_image
 
 

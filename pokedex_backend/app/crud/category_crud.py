@@ -16,6 +16,8 @@ from app.models import (
     CategoryReadWithImages,
     Image,
     CategoryUpdate,
+    Tag,
+    ImageTagLink,
 )
 from app.services.file_storage_service import FileStorageService
 
@@ -157,6 +159,7 @@ async def delete_category(
 ) -> Optional[Category]:
     """
     从数据库中删除一个类别，并级联删除该类别下的所有图片数据库记录及其对应的物理文件。
+    同时会检查并删除不再被任何图片使用的标签。
     此函数设计为异步执行，文件IO和数据库操作通过 `run_in_threadpool` 在单独线程中运行，
     以避免阻塞FastAPI的事件循环。
 
@@ -168,7 +171,6 @@ async def delete_category(
         Optional[Category]: 如果删除成功则返回被删除的类别对象 (在从数据库删除前获取的状态)，
                           如果未找到要删除的类别，则返回None。
     """
-
     # 在线程池中执行同步的数据库get操作
     def get_category_sync():
         return session.get(Category, category_id)
@@ -185,6 +187,13 @@ async def delete_category(
         return session.exec(select(Image).where(Image.category_id == category_id)).all()
 
     images_in_category = await run_in_threadpool(get_images_sync)
+
+    # 收集所有需要检查的标签（使用列表存储）
+    all_tags_to_check = []
+    for img in images_in_category:
+        for tag in img.tags:
+            if tag not in all_tags_to_check:  # 手动去重
+                all_tags_to_check.append(tag)
 
     # 级联删除图片文件和数据库记录
     for img in images_in_category:
@@ -208,7 +217,19 @@ async def delete_category(
     # 在线程池中执行同步的数据库delete操作 (针对类别本身)
     await run_in_threadpool(session.delete, category_to_delete)
 
-    # 将所有数据库更改（图片删除和类别删除）在单个原子事务中统一提交
+    # 检查并删除未使用的标签
+    def cleanup_unused_tags_sync(tags_to_check: List[Tag]):
+        for tag in tags_to_check:
+            # 检查标签是否还被其他图片使用
+            link_statement = select(ImageTagLink).where(ImageTagLink.tag_id == tag.id)
+            first_link = session.exec(link_statement).first()
+            if not first_link:
+                # 如果没有其他图片使用此标签，则删除标签
+                session.delete(tag)
+
+    await run_in_threadpool(cleanup_unused_tags_sync, all_tags_to_check)
+
+    # 将所有数据库更改（图片删除、类别删除和标签清理）在单个原子事务中统一提交
     await run_in_threadpool(session.commit)
 
     return category_to_delete  # 返回删除前获取到的类别对象信息

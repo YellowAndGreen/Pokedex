@@ -287,129 +287,51 @@ def search_images_by_tags(
     return images
 
 
-@router.get("/{image_id}/", response_model=ImageRead, summary="获取图片元数据")
+@router.get("/{image_id}/", response_model=ImageRead)
 def read_image(
-    *, session: Session = Depends(get_session), image_id: uuid.UUID
-) -> ImageRead:
+    *,
+    session: Session = Depends(get_session),
+    image_id: uuid.UUID,
+):
     """
-    根据ID获取单个图片的元数据。
+    根据ID获取指定图片的元数据。
     """
-    db_image = image_crud.get_image(session=session, image_id=image_id)
+    db_image = image_crud.get_image_by_id(session=session, image_id=image_id)
     if not db_image:
         raise HTTPException(status_code=404, detail="Image not found")
     return db_image
 
 
-@router.put("/{image_id}/", response_model=ImageRead, summary="更新图片元数据")
+@router.put("/{image_id}/", response_model=ImageRead)
 def update_image_metadata(
     *,
     session: Session = Depends(get_session),
     image_id: uuid.UUID,
     image_in: ImageUpdate,
-) -> ImageRead:
+):
     """
     更新指定图片的元数据，如描述、标签或所属类别。
     可以附带指定是否将此图片设置为其所属类别的缩略图。
     """
     db_image = image_crud.get_image_by_id(session=session, image_id=image_id)
     if not db_image:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片未找到")
+        raise HTTPException(status_code=404, detail="Image not found")
 
-    original_category_id = db_image.category_id
-    original_thumbnail_path_of_this_image = (
-        db_image.relative_thumbnail_path
-    )  # 图片自身的缩略图路径
+    # 处理标签更新
+    new_tags = []
+    if image_in.tags is not None and image_in.tags.strip():
+        tag_names = [name.strip() for name in image_in.tags.split(",") if name.strip()]
+        for tag_name in tag_names:
+            tag = tag_crud.get_or_create_tag(session=session, tag_name=tag_name)
+            new_tags.append(tag)
 
-    # 1. 处理类别更改的校验 (如果提供了 new_category_id)
-    new_category_id_from_input = image_in.category_id
-    if (
-        new_category_id_from_input is not None
-        and new_category_id_from_input != original_category_id
-    ):
-        db_new_target_category = category_crud.get_category_by_id(
-            session=session, category_id=new_category_id_from_input
-        )
-        if not db_new_target_category:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"目标类别ID {new_category_id_from_input} 不存在",
-            )
-
-    # 2. 更新图片本身的元数据 (包括可能的 category_id 更改)
+    # 更新图片元数据
     updated_image = image_crud.update_image_metadata(
-        session=session, db_image=db_image, image_in=image_in
-    )
-    # `updated_image` 现在包含了最新的数据，包括它的 category_id 和 relative_thumbnail_path
-
-    categories_to_commit = []  # 修改: 从 set 改为 list
-
-    # 3. 清理旧类别的缩略图 (如果图片被移动，且它曾是旧类别的缩略图)
-    if (
-        new_category_id_from_input is not None
-        and new_category_id_from_input != original_category_id
-    ):
-        original_category = category_crud.get_category_by_id(
-            session=session, category_id=original_category_id
-        )
-        if (
-            original_category
-            and original_category.thumbnail_path
-            == original_thumbnail_path_of_this_image
-        ):
-            original_category.thumbnail_path = None
-            session.add(original_category)
-            if original_category not in categories_to_commit:  # 修改: 条件添加
-                categories_to_commit.append(original_category)
-
-    # 4. 处理目标/当前类别的缩略图设置
-    target_category_for_thumbnail_logic = category_crud.get_category_by_id(
         session=session,
-        category_id=updated_image.category_id,  # 使用 updated_image 的 category_id
+        image=db_image,
+        image_in=image_in,
+        new_tags=new_tags
     )
-
-    if target_category_for_thumbnail_logic:
-        if image_in.set_as_category_thumbnail is True:
-            if updated_image.relative_thumbnail_path:
-                if (
-                    target_category_for_thumbnail_logic.thumbnail_path
-                    != updated_image.relative_thumbnail_path
-                ):
-                    target_category_for_thumbnail_logic.thumbnail_path = (
-                        updated_image.relative_thumbnail_path
-                    )
-                    session.add(target_category_for_thumbnail_logic)
-                    if (
-                        target_category_for_thumbnail_logic not in categories_to_commit
-                    ):  # 修改: 条件添加
-                        categories_to_commit.append(target_category_for_thumbnail_logic)
-            else:
-                # 图片本身没有缩略图，不能设为类别缩略图，可以考虑警告或忽略
-                print(
-                    f"警告: 图片 {updated_image.id} 没有缩略图，无法将其设置为类别 {target_category_for_thumbnail_logic.id} 的缩略图。"
-                )
-
-        elif image_in.set_as_category_thumbnail is False:
-            # 如果指令是取消设为缩略图，并且当前类别的缩略图确实是这张图片
-            if (
-                target_category_for_thumbnail_logic.thumbnail_path
-                == updated_image.relative_thumbnail_path
-            ):
-                target_category_for_thumbnail_logic.thumbnail_path = None
-                session.add(target_category_for_thumbnail_logic)
-                if (
-                    target_category_for_thumbnail_logic not in categories_to_commit
-                ):  # 修改: 条件添加
-                    categories_to_commit.append(target_category_for_thumbnail_logic)
-        # 如果 image_in.set_as_category_thumbnail is None (未提供)，则不主动修改目标类别的缩略图，
-        # 除非因图片移动导致旧类别缩略图被清理（已在步骤3处理）。
-
-    # 5. 统一提交并刷新
-    if categories_to_commit:
-        session.commit()
-        for cat in categories_to_commit:
-            session.refresh(cat)
-
-    session.refresh(updated_image)  # 确保返回的图片对象是最新的
     return updated_image
 
 

@@ -70,13 +70,11 @@ def get_tag_by_name(*, session: Session, name: str) -> Optional[Tag]:
 
 def get_or_create_tag(*, session: Session, tag_name: str) -> Tag:
     """
-    根据名称获取标签，如果不存在则创建新标签。
-    此函数现在只将新标签添加到会话中，而不提交它。
-    提交操作应由调用此函数的上层路由或服务处理。
+    获取指定名称的标签，如果不存在则创建。
 
     参数:
         session (Session): 数据库会话对象。
-        tag_name (str): 标签的名称。
+        tag_name (str): 标签名称。
 
     返回:
         Tag: 获取或创建的标签对象。
@@ -88,7 +86,6 @@ def get_or_create_tag(*, session: Session, tag_name: str) -> Tag:
         session.add(db_tag)
         # Flush the session to assign an ID to the new tag without committing the transaction
         session.flush()
-        session.refresh(db_tag)
     return db_tag
 
 
@@ -173,3 +170,27 @@ def delete_tag(*, session: Session, tag_id: uuid.UUID) -> Optional[Tag]:
     session.delete(db_tag)
     session.commit()
     return db_tag
+
+
+def cleanup_unused_tags(*, session: Session) -> None:
+    """
+    清理不再被任何图片使用的标签。
+
+    参数:
+        session (Session): 数据库会话对象。
+    """
+    # 查找所有没有关联图片的标签
+    statement = (
+        select(Tag)
+        .outerjoin(ImageTagLink)
+        .group_by(Tag.id)
+        .having(func.count(ImageTagLink.tag_id) == 0)
+    )
+    unused_tags = session.exec(statement).all()
+
+    # 删除这些标签
+    for tag in unused_tags:
+        session.delete(tag)
+
+    if unused_tags:
+        session.commit()

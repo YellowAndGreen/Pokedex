@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 from sqlmodel import SQLModel, Field, Relationship, Column, JSON
 import uuid
 from pydantic import computed_field
+from sqlalchemy.types import TypeDecorator, JSON as SQLAlchemyJSON
 
 from app.core.config import settings
 
@@ -17,6 +18,26 @@ from .link_models import ImageTagLink
 
 # 避免循环导入，CategoryRead 在需要时以字符串形式提示，或按需导入
 # from app.models.category_models import CategoryRead
+
+
+class ExifDataJSON(TypeDecorator):
+    """自定义的 ExifData JSON 类型处理器"""
+    impl = SQLAlchemyJSON
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """将 ExifData 对象转换为 JSON 可序列化的字典"""
+        if value is None:
+            return None
+        if isinstance(value, ExifData):
+            return value.model_dump()
+        return value
+
+    def process_result_value(self, value, dialect):
+        """将 JSON 数据转换回 ExifData 对象"""
+        if value is None:
+            return None
+        return ExifData.model_validate(value)
 
 
 class ExifData(SQLModel):
@@ -44,6 +65,20 @@ class ExifData(SQLModel):
     )  # 注意：这可能是二进制数据，转为字符串可能需要特定处理
     color_space: Optional[str] = Field(default=None, description="色彩空间")
     white_balance: Optional[str] = Field(default=None, description="白平衡")
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }
+        from_attributes = True
+
+    def dict(self, *args, **kwargs):
+        """重写 dict 方法以支持 JSON 序列化"""
+        return super().model_dump(*args, **kwargs)
+
+    def json(self, *args, **kwargs):
+        """重写 json 方法以支持 JSON 序列化"""
+        return super().model_dump_json(*args, **kwargs)
 
 
 class ImageBase(SQLModel):
@@ -93,7 +128,9 @@ class Image(ImageBase, table=True):
     )
 
     exif_info: Optional[ExifData] = Field(
-        default=None, sa_column=Column(JSON), description="结构化的EXIF信息"
+        default=None,
+        sa_column=Column(ExifDataJSON),
+        description="结构化的EXIF信息"
     )
 
     category_id: uuid.UUID = Field(
@@ -173,12 +210,20 @@ class ImageRead(ImageBase):
 class ImageUpdate(SQLModel):
     """更新图片元数据时使用的模型"""
 
-    title: Optional[str] = Field(None, max_length=255, description="新的图片标题")
-    description: Optional[str] = Field(None, max_length=500)
-    tags: Optional[List[str]] = Field(default=None, description="要更新的标签名称列表")
-    category_id: Optional[uuid.UUID] = None
+    title: Optional[str] = Field(
+        default=None, max_length=255, description="新的图片标题"
+    )
+    description: Optional[str] = Field(
+        default=None, max_length=500, description="新的图片描述"
+    )
+    tags: Optional[str] = Field(
+        default=None, description="逗号分隔的标签字符串 (例如 \"风景,旅行\")"
+    )
+    category_id: Optional[uuid.UUID] = Field(
+        default=None, description="新的类别ID"
+    )
     set_as_category_thumbnail: Optional[bool] = Field(
-        None, description="是否将此图片设置为其所属类别的缩略图"
+        default=False, description="是否将此图片设置为其所属类别的缩略图"
     )
 
 
